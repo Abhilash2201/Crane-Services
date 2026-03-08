@@ -25,6 +25,15 @@ app.use("/webhooks", webhooksRoutes);
 app.use(express.json({ limit: "1mb" }));
 app.use(morgan("dev"));
 
+app.get("/", (_req, res) => {
+  res.json({
+    success: true,
+    message: "Crane Services API is running",
+    docs: "/api/docs",
+    health: "/api/health"
+  });
+});
+
 app.get("/api/docs.json", (_req, res) => {
   res.json(swaggerSpec);
 });
