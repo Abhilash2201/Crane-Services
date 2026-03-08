@@ -2,10 +2,12 @@ const express = require("express");
 const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
+const swaggerUi = require("swagger-ui-express");
 const { ZodError } = require("zod");
 const env = require("./config/env");
 const routes = require("./routes");
 const webhooksRoutes = require("./routes/webhooks.routes");
+const { swaggerSpec } = require("./docs/swagger");
 const { HttpError } = require("./utils/httpError");
 const { errorHandler } = require("./middlewares/errorHandler");
 
@@ -22,6 +24,11 @@ app.use("/webhooks/stripe", express.raw({ type: "application/json" }));
 app.use("/webhooks", webhooksRoutes);
 app.use(express.json({ limit: "1mb" }));
 app.use(morgan("dev"));
+
+app.get("/api/docs.json", (_req, res) => {
+  res.json(swaggerSpec);
+});
+app.use("/api/docs", swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 app.use("/api", routes);
 

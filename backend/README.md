@@ -14,6 +14,8 @@ npm run dev
 
 API base URL: `http://localhost:8080/api`
 Socket URL: `ws://localhost:8080`
+Swagger UI: `http://localhost:8080/api/docs`
+OpenAPI JSON: `http://localhost:8080/api/docs.json`
 
 ## Environment
 
