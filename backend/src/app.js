@@ -3,14 +3,23 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const { ZodError } = require("zod");
+const env = require("./config/env");
 const routes = require("./routes");
+const webhooksRoutes = require("./routes/webhooks.routes");
 const { HttpError } = require("./utils/httpError");
 const { errorHandler } = require("./middlewares/errorHandler");
 
 const app = express();
 
 app.use(helmet());
-app.use(cors());
+app.use(
+  cors({
+    origin: env.frontendOrigins,
+    credentials: true
+  })
+);
+app.use("/webhooks/stripe", express.raw({ type: "application/json" }));
+app.use("/webhooks", webhooksRoutes);
 app.use(express.json({ limit: "1mb" }));
 app.use(morgan("dev"));
 

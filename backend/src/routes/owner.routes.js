@@ -50,6 +50,8 @@ router.post(
     `;
 
     if (!requestRow.length) throw new HttpError(404, "Pending request not found");
+    const io = req.app.get("io");
+    io?.to("role:admin").emit("request:accepted", requestRow[0]);
     res.json({ success: true, data: requestRow[0] });
   })
 );
@@ -77,6 +79,10 @@ router.post(
           updated_at = now()
       RETURNING *
     `;
+    const io = req.app.get("io");
+    io?.to(`user:${payload.driverId}`).emit("dispatch:job_assigned", job[0]);
+    io?.to("role:admin").emit("dispatch:job_assigned", job[0]);
+    io?.to(`job:${job[0].id}`).emit("dispatch:job_assigned", job[0]);
     res.json({ success: true, data: job[0] });
   })
 );

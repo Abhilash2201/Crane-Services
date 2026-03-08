@@ -3,10 +3,12 @@ import { MainLayout } from "./components/layout/MainLayout";
 import { AuthPage } from "./pages/AuthPage";
 import { ActiveJobsPage } from "./pages/ActiveJobsPage";
 import { DashboardPage } from "./pages/DashboardPage";
+import { DispatchPage } from "./pages/DispatchPage";
 import { DriversPage } from "./pages/DriversPage";
 import { FleetPage } from "./pages/FleetPage";
 import { LiveRequestsPage } from "./pages/LiveRequestsPage";
 import { ReportsPage } from "./pages/ReportsPage";
+import { TrackingPage } from "./pages/TrackingPage";
 
 function App() {
   return (
@@ -17,6 +19,8 @@ function App() {
         <Route path="/auth" element={<AuthPage />} />
         <Route path="/live-requests" element={<LiveRequestsPage />} />
         <Route path="/fleet" element={<FleetPage />} />
+        <Route path="/dispatch" element={<DispatchPage />} />
+        <Route path="/tracking/:id" element={<TrackingPage />} />
         <Route path="/active-jobs" element={<ActiveJobsPage />} />
         <Route path="/drivers" element={<DriversPage />} />
         <Route path="/reports" element={<ReportsPage />} />

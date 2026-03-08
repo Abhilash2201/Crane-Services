@@ -57,6 +57,9 @@ router.post(
       )
       RETURNING *
     `;
+    const io = req.app.get("io");
+    io?.to(`job:${payload.jobId}`).emit("tracking:updated", event[0]);
+    io?.to("role:admin").emit("tracking:updated", event[0]);
 
     res.status(201).json({ success: true, data: event[0] });
   })
@@ -92,6 +95,18 @@ router.patch(
         WHERE id = ${job[0].request_id}
       `;
     }
+
+    const io = req.app.get("io");
+    io?.to(`job:${jobId}`).emit("job:status_changed", {
+      jobId,
+      requestId: job[0].request_id,
+      status
+    });
+    io?.to("role:admin").emit("job:status_changed", {
+      jobId,
+      requestId: job[0].request_id,
+      status
+    });
 
     res.json({ success: true, data: job[0] });
   })

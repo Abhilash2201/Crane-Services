@@ -1,9 +1,11 @@
 import { MessageSquare, Phone, ShieldCheck, Truck } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import styled from "styled-components";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
+import { createRealtimeSocket } from "../lib/realtime";
 
 const Wrap = styled.div`display: grid; gap: 14px; @media (min-width: 950px) { grid-template-columns: 1.2fr 0.8fr; }`;
 const timelines: Record<string, string[][]> = {
@@ -16,13 +18,44 @@ export function TrackingPage() {
   const { id } = useParams();
   const timeline = timelines[id ?? ""] ?? timelines["REQ-MUM-5521"];
   const currentStatus = timeline[timeline.length - 1][0];
-  const canCancel = currentStatus === "Confirmed";
-  const canComplete = currentStatus === "In Progress";
+  const [lastTracking, setLastTracking] = useState<null | {
+    latitude: number;
+    longitude: number;
+    captured_at: string;
+  }>(null);
+  const [liveStatus, setLiveStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token") || undefined;
+    const socket = createRealtimeSocket(token);
+    if (id) socket.emit("join:job", id);
+
+    socket.on("tracking:updated", (event) => {
+      if (!event?.job_id) return;
+      if (id && event.job_id !== id) return;
+      setLastTracking(event);
+    });
+
+    socket.on("job:status_changed", (event) => {
+      if (!event?.requestId && !event?.jobId) return;
+      if (id && event.requestId !== id && event.jobId !== id) return;
+      setLiveStatus(event.status);
+    });
+
+    return () => {
+      if (id) socket.emit("leave:job", id);
+      socket.disconnect();
+    };
+  }, [id]);
+
+  const resolvedStatus = useMemo(() => liveStatus || currentStatus, [liveStatus, currentStatus]);
+  const canCancel = resolvedStatus === "Confirmed";
+  const canComplete = resolvedStatus === "In Progress";
 
   return (
     <Wrap>
       <Card><CardContent style={{ display: "grid", gap: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}><h1 style={{ margin: 0 }}>Request Detail: {id}</h1><Badge variant={currentStatus === "In Progress" ? "warning" : "default"}>{currentStatus}</Badge></div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}><h1 style={{ margin: 0 }}>Request Detail: {id}</h1><Badge variant={resolvedStatus === "In Progress" ? "warning" : "default"}>{resolvedStatus}</Badge></div>
         <div style={{ display: "grid", gap: 10 }}>
           <h3 style={{ marginBottom: 0 }}>Status Timeline</h3>
           {timeline.map(([title, stamp], index) => (
@@ -34,7 +67,17 @@ export function TrackingPage() {
         </div>
         <div>
           <h3 style={{ marginBottom: 8 }}>Live Map Preview</h3>
-          <div style={{ height: 260, borderRadius: 14, border: "1px solid #E2E8F0", background: "linear-gradient(130deg,#dbeafe,#e2e8f0)", display: "grid", placeItems: "center" }}>Crane Route: Azadpur Yard to Okhla Phase II (ETA 24 mins)</div>
+          <div style={{ height: 260, borderRadius: 14, border: "1px solid #E2E8F0", background: "linear-gradient(130deg,#dbeafe,#e2e8f0)", display: "grid", placeItems: "center", padding: 12, textAlign: "center" }}>
+            {lastTracking ? (
+              <div>
+                <div>Live coordinates</div>
+                <strong>{lastTracking.latitude.toFixed(5)}, {lastTracking.longitude.toFixed(5)}</strong>
+                <div style={{ color: "#475569", marginTop: 4 }}>Updated: {new Date(lastTracking.captured_at).toLocaleTimeString()}</div>
+              </div>
+            ) : (
+              "Waiting for driver tracking signal"
+            )}
+          </div>
         </div>
       </CardContent></Card>
 

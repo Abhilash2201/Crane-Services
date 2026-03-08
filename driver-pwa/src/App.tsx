@@ -11,9 +11,10 @@ import {
   Waypoints,
   WifiOff
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
+import { createRealtimeSocket } from "./lib/realtime";
 
 type JobStatus = "new" | "assigned" | "in_progress" | "completed" | "rejected";
 type Job = {
@@ -126,6 +127,7 @@ function saveState(state: DriverState) {
 export default function App() {
   const [state, setState] = useState<DriverState>(() => loadState());
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const socketRef = useRef<ReturnType<typeof createRealtimeSocket> | null>(null);
 
   useEffect(() => saveState(state), [state]);
   useEffect(() => {
@@ -139,6 +141,63 @@ export default function App() {
     };
   }, []);
 
+  useEffect(() => {
+    const token = localStorage.getItem("access_token") || undefined;
+    const socket = createRealtimeSocket(token);
+    socketRef.current = socket;
+
+    socket.on("dispatch:job_assigned", (payload) => {
+      setState((prev) => {
+        const jobId = payload?.request_id || payload?.id;
+        if (!jobId) return prev;
+        const exists = prev.jobs.some((job) => job.id === jobId);
+        if (exists) return prev;
+
+        const nextJob: Job = {
+          id: jobId,
+          variant: payload?.crane_registration || "Assigned Crane",
+          capacity: "NA",
+          customer: "Customer",
+          mobile: "N/A",
+          location: "Live location pending",
+          distanceKm: 0,
+          schedule: new Date().toLocaleString(),
+          load: "N/A",
+          amount: 0,
+          status: "new",
+          reached: false,
+          started: false,
+          proofCount: 0
+        };
+
+        return { ...prev, jobs: [nextJob, ...prev.jobs] };
+      });
+    });
+
+    socket.on("job:status_changed", (payload) => {
+      if (!payload?.jobId) return;
+      const statusMap: Record<string, JobStatus> = {
+        assigned: "assigned",
+        en_route: "assigned",
+        working: "in_progress",
+        completed: "completed",
+        cancelled: "rejected"
+      };
+
+      setState((prev) => ({
+        ...prev,
+        jobs: prev.jobs.map((job) =>
+          job.id === payload.jobId ? { ...job, status: statusMap[payload.status] || job.status } : job
+        )
+      }));
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, []);
+
   const derived = useMemo(() => {
     const active = state.jobs.find((j) => j.status === "in_progress" || j.status === "assigned");
     const newest = state.jobs.find((j) => j.status === "new");
@@ -146,6 +205,30 @@ export default function App() {
     const todaysEarnings = completed.reduce((sum, j) => sum + j.amount, 0);
     return { active, newest, completed, todaysEarnings };
   }, [state.jobs]);
+
+  useEffect(() => {
+    const socket = socketRef.current;
+    if (!socket) return;
+    if (!state.online || isOffline) return;
+    if (!derived.active) return;
+
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(derived.active.id);
+    if (!isUuid) return;
+
+    const timer = setInterval(() => {
+      const lat = 12.9716 + (Math.random() - 0.5) * 0.01;
+      const lng = 77.5946 + (Math.random() - 0.5) * 0.01;
+      socket.emit("tracking:update", {
+        jobId: derived.active?.id,
+        latitude: lat,
+        longitude: lng,
+        speedKmph: 25 + Math.random() * 20,
+        heading: Math.round(Math.random() * 360)
+      });
+    }, 15000);
+
+    return () => clearInterval(timer);
+  }, [derived.active, state.online, isOffline]);
 
   const actions = {
     login: (phone: string) => setState((s) => ({ ...s, isLoggedIn: true, phone })),

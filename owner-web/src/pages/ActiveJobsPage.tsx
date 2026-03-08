@@ -1,9 +1,10 @@
 import { Phone } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
+import { createRealtimeSocket } from "../lib/realtime";
 import { Modal } from "../components/ui/modal";
 
 const jobs = [
@@ -22,10 +23,38 @@ function tone(status: string) {
 export function ActiveJobsPage() {
   const [open, setOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState<string>("");
+  const [liveEvents, setLiveEvents] = useState<string[]>([]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token") || undefined;
+    const socket = createRealtimeSocket(token);
+
+    socket.on("dispatch:job_assigned", (payload) => {
+      setLiveEvents((prev) => [`Driver assigned for ${payload.request_id || payload.id}`, ...prev].slice(0, 5));
+    });
+
+    socket.on("job:status_changed", (payload) => {
+      setLiveEvents((prev) => [`${payload.jobId} changed to ${payload.status}`, ...prev].slice(0, 5));
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <h1>My Active Jobs</h1>
+      {liveEvents.length ? (
+        <Card>
+          <CardContent style={{ display: "grid", gap: 6 }}>
+            <strong>Live Updates</strong>
+            {liveEvents.map((event) => (
+              <small key={event} style={{ color: "#334155" }}>{event}</small>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
       {jobs.map((job) => (
         <Card key={job.id}>
           <CardContent style={{ display: "grid", gap: 8 }}>

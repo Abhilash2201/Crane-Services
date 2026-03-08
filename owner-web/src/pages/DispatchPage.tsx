@@ -1,8 +1,10 @@
 import { MapPin, MoveRight, UserRound } from "lucide-react";
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
+import { createRealtimeSocket } from "../lib/realtime";
 
 const readyJobs = [
   {
@@ -24,12 +26,42 @@ const readyJobs = [
 ];
 
 export function DispatchPage() {
+  const [events, setEvents] = useState<string[]>([]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token") || undefined;
+    const socket = createRealtimeSocket(token);
+
+    socket.on("dispatch:job_assigned", (payload) => {
+      setEvents((prev) => [`Assigned: ${payload.request_id || payload.id}`, ...prev].slice(0, 5));
+    });
+
+    socket.on("job:status_changed", (payload) => {
+      setEvents((prev) => [`${payload.jobId} status -> ${payload.status}`, ...prev].slice(0, 5));
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
+
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <h1>Dispatch Board</h1>
       <p style={{ margin: 0, color: "#64748B" }}>
         Assign drivers/operators and push tasks to driver-pwa for live execution updates.
       </p>
+
+      {events.length ? (
+        <Card>
+          <CardContent style={{ display: "grid", gap: 6 }}>
+            <strong>Realtime Feed</strong>
+            {events.map((event) => (
+              <small key={event}>{event}</small>
+            ))}
+          </CardContent>
+        </Card>
+      ) : null}
 
       {readyJobs.map((job) => (
         <Card key={job.id}>

@@ -1,10 +1,11 @@
-import { useMemo, useState } from "react";
+ï»¿import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
 import { serviceRequests } from "../data/mockData";
 import { Badge } from "../components/ui/badge";
 import { Modal } from "../components/ui/modal";
+import { createRealtimeSocket } from "../lib/realtime";
 
 const statusVariant = (status: string) => {
   if (status === "Completed") return "success" as const;
@@ -20,6 +21,26 @@ export function RequestsPage() {
   const [variant, setVariant] = useState("All");
   const [city, setCity] = useState("All");
   const [selected, setSelected] = useState<null | (typeof serviceRequests)[number]>(null);
+  const [liveEvents, setLiveEvents] = useState<string[]>([]);
+
+  useEffect(() => {
+    const token = localStorage.getItem("access_token") || undefined;
+    const socket = createRealtimeSocket(token);
+
+    socket.on("tracking:updated", (payload) => {
+      setLiveEvents((prev) => [`Tracking ping: ${payload.job_id}`, ...prev].slice(0, 6));
+    });
+    socket.on("job:status_changed", (payload) => {
+      setLiveEvents((prev) => [`${payload.jobId} -> ${payload.status}`, ...prev].slice(0, 6));
+    });
+    socket.on("request:accepted", (payload) => {
+      setLiveEvents((prev) => [`Request accepted: ${payload.id}`, ...prev].slice(0, 6));
+    });
+
+    return () => {
+      socket.disconnect();
+    };
+  }, []);
 
   const filtered = useMemo(
     () =>
@@ -62,6 +83,15 @@ export function RequestsPage() {
           </Select>
         </div>
 
+        {liveEvents.length ? (
+          <div style={{ border: "1px solid #E2E8F0", borderRadius: 10, padding: 10, marginBottom: 12, background: "#F8FAFC" }}>
+            <strong style={{ display: "block", marginBottom: 4 }}>Live Ops Feed</strong>
+            {liveEvents.map((item) => (
+              <div key={item} style={{ fontSize: 13, color: "#334155" }}>{item}</div>
+            ))}
+          </div>
+        ) : null}
+
         <div style={{ overflow: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
@@ -93,12 +123,12 @@ export function RequestsPage() {
         <Modal open={Boolean(selected)} title="Request Details" onClose={() => setSelected(null)}>
           {selected && (
             <div style={{ display: "grid", gap: 12 }}>
-              <strong style={{ color: "#0A2540" }}>{selected.id} • {selected.customer}</strong>
+              <strong style={{ color: "#0A2540" }}>{selected.id} - {selected.customer}</strong>
               <div style={{ color: "#334155", fontSize: 14 }}>Variant: {selected.variant}</div>
               <div style={{ color: "#334155", fontSize: 14 }}>Location: {selected.location}</div>
-              <div style={{ color: "#334155", fontSize: 14 }}>Timeline: Opened 08:45 AM ? Owner Accepted 09:03 AM ? Driver Assigned 09:08 AM ? {selected.status}</div>
+              <div style={{ color: "#334155", fontSize: 14 }}>Timeline: Opened 08:45 AM - Owner Accepted 09:03 AM - Driver Assigned 09:08 AM - {selected.status}</div>
               <div style={{ border: "1px dashed #CBD5E1", borderRadius: 10, height: 180, display: "grid", placeItems: "center", color: "#64748B", background: "#F8FAFC" }}>
-                Map Preview • {selected.location}
+                Map Preview - {selected.location}
               </div>
             </div>
           )}
