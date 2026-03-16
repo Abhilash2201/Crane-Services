@@ -65,8 +65,13 @@ async function sendMail({ to, subject, text, html }) {
 async function verifySmtp() {
   const tx = getTransporter();
   if (!tx) return { disabled: true };
-  const verified = await tx.verify();
-  return { verified };
+  try {
+    const verified = await tx.verify();
+    return { verified };
+  } catch (err) {
+    console.error("SMTP_VERIFY_FAILED", err);
+    throw err;
+  }
 }
 
 module.exports = { sendMail, verifySmtp };
