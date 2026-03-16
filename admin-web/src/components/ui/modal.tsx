@@ -44,7 +44,7 @@ export function Modal({
   open,
   title,
   children,
-  onClose
+  onClose,
 }: {
   open: boolean;
   title: string;

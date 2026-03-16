@@ -28,7 +28,13 @@ const Bubble = styled.span`
   z-index: 20;
 `;
 
-export function Tooltip({ content, children }: { content: string; children: ReactNode }) {
+export function Tooltip({
+  content,
+  children,
+}: {
+  content: string;
+  children: ReactNode;
+}) {
   return (
     <Wrap>
       {children}

@@ -1,4 +1,17 @@
-import { Bell, Building2, ChartColumnBig, CircleHelp, ClipboardCheck, CreditCard, LayoutDashboard, Menu, Search, Settings, Truck, Users } from "lucide-react";
+import {
+  Bell,
+  Building2,
+  ChartColumnBig,
+  CircleHelp,
+  ClipboardCheck,
+  CreditCard,
+  LayoutDashboard,
+  Menu,
+  Search,
+  Settings,
+  Truck,
+  Users,
+} from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import styled from "styled-components";
 import { Button } from "../ui/button";
@@ -48,7 +61,8 @@ const NavItem = styled(NavLink)<{ $collapsed: boolean }>`
   min-height: 44px;
   border-radius: 10px;
   padding: ${({ $collapsed }) => ($collapsed ? "0" : "0 12px")};
-  justify-content: ${({ $collapsed }) => ($collapsed ? "center" : "flex-start")};
+  justify-content: ${({ $collapsed }) =>
+    $collapsed ? "center" : "flex-start"};
 
   &.active {
     background: rgba(255, 98, 0, 0.14);
@@ -144,12 +158,12 @@ const navItems = [
   { to: "/payments", label: "Payments", icon: CreditCard },
   { to: "/disputes", label: "Disputes", icon: CircleHelp },
   { to: "/analytics", label: "Analytics", icon: ChartColumnBig },
-  { to: "/settings", label: "Settings", icon: Settings }
+  { to: "/settings", label: "Settings", icon: Settings },
 ];
 
 export function AdminLayout({
   collapsed,
-  setCollapsed
+  setCollapsed,
 }: {
   collapsed: boolean;
   setCollapsed: (value: boolean) => void;
@@ -160,7 +174,12 @@ export function AdminLayout({
     <Shell>
       <Sidebar $collapsed={collapsed}>
         <Brand $collapsed={collapsed}>
-          <img alt="CraneHub" src="https://cdn-icons-png.flaticon.com/512/2784/2784487.png" width="34" height="34" />
+          <img
+            alt="CraneHub"
+            src="https://cdn-icons-png.flaticon.com/512/2784/2784487.png"
+            width="34"
+            height="34"
+          />
           <strong>CraneHub</strong>
         </Brand>
 
@@ -178,7 +197,11 @@ export function AdminLayout({
 
       <Main>
         <Topbar>
-          <Button size="icon" variant="outline" onClick={() => setCollapsed(!collapsed)}>
+          <Button
+            size="icon"
+            variant="outline"
+            onClick={() => setCollapsed(!collapsed)}
+          >
             <Menu size={18} />
           </Button>
 

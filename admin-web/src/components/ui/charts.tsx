@@ -14,12 +14,24 @@ const Axis = styled.div`
   font-size: 12px;
 `;
 
-export function BarChart({ data }: { data: { label: string; value: number }[] }) {
+export function BarChart({
+  data,
+}: {
+  data: { label: string; value: number }[];
+}) {
   const max = Math.max(...data.map((item) => item.value), 1);
 
   return (
     <ChartWrap>
-      <div style={{ height: 200, display: "grid", alignItems: "end", gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))`, gap: 12 }}>
+      <div
+        style={{
+          height: 200,
+          display: "grid",
+          alignItems: "end",
+          gridTemplateColumns: `repeat(${data.length}, minmax(0, 1fr))`,
+          gap: 12,
+        }}
+      >
         {data.map((item) => (
           <div key={item.label} title={`${item.label}: ${item.value}`}>
             <div
@@ -28,7 +40,7 @@ export function BarChart({ data }: { data: { label: string; value: number }[] })
                 borderRadius: 10,
                 background: "linear-gradient(180deg, #FF6200 0%, #FF8A3D 100%)",
                 boxShadow: "0 8px 18px rgba(255,98,0,0.25)",
-                transition: "0.2s"
+                transition: "0.2s",
               }}
             />
           </div>
@@ -43,7 +55,11 @@ export function BarChart({ data }: { data: { label: string; value: number }[] })
   );
 }
 
-export function LineChart({ data }: { data: { label: string; value: number }[] }) {
+export function LineChart({
+  data,
+}: {
+  data: { label: string; value: number }[];
+}) {
   const max = Math.max(...data.map((item) => item.value), 1);
   const min = Math.min(...data.map((item) => item.value), 0);
 
@@ -57,15 +73,27 @@ export function LineChart({ data }: { data: { label: string; value: number }[] }
 
   return (
     <ChartWrap>
-      <svg viewBox="0 0 100 100" preserveAspectRatio="none" style={{ width: "100%", height: 200 }}>
+      <svg
+        viewBox="0 0 100 100"
+        preserveAspectRatio="none"
+        style={{ width: "100%", height: 200 }}
+      >
         <defs>
           <linearGradient id="cranehub-line" x1="0" y1="0" x2="0" y2="1">
             <stop offset="0%" stopColor="#FF6200" stopOpacity="0.35" />
             <stop offset="100%" stopColor="#FF6200" stopOpacity="0.02" />
           </linearGradient>
         </defs>
-        <polyline fill="none" stroke="#FF6200" strokeWidth="2.4" points={points} />
-        <polygon fill="url(#cranehub-line)" points={`0,100 ${points} 100,100`} />
+        <polyline
+          fill="none"
+          stroke="#FF6200"
+          strokeWidth="2.4"
+          points={points}
+        />
+        <polygon
+          fill="url(#cranehub-line)"
+          points={`0,100 ${points} 100,100`}
+        />
       </svg>
       <Axis style={{ ["--count" as string]: data.length }}>
         {data.map((item) => (

@@ -1,6 +1,16 @@
 import styled from "styled-components";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
-import { kpis, recentActivity, requestsByVariant, revenueTrend } from "../data/mockData";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
+import {
+  kpis,
+  recentActivity,
+  requestsByVariant,
+  revenueTrend,
+} from "../data/mockData";
 import { Badge } from "../components/ui/badge";
 import { BarChart, LineChart } from "../components/ui/charts";
 
@@ -98,14 +108,16 @@ const MiniSidebar = styled.div<{ $collapsed?: boolean }>`
     height: 26px;
     border-radius: 7px;
     background: rgba(255, 255, 255, 0.14);
-    width: ${({ $collapsed }) => ($collapsed ? "30px" : "100%")} ;
+    width: ${({ $collapsed }) => ($collapsed ? "30px" : "100%")};
   }
 `;
 
 export function OverviewPage() {
   return (
     <div>
-      <h1 style={{ marginTop: 0, marginBottom: 12, color: "#0A2540" }}>Platform Overview</h1>
+      <h1 style={{ marginTop: 0, marginBottom: 12, color: "#0A2540" }}>
+        Platform Overview
+      </h1>
       <Grid>
         {kpis.map((kpi) => (
           <KpiCard key={kpi.label}>

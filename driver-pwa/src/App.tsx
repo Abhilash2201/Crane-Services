@@ -9,10 +9,16 @@ import {
   UserRound,
   Wallet,
   Waypoints,
-  WifiOff
+  WifiOff,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Navigate, Route, Routes, useLocation, useNavigate } from "react-router-dom";
+import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+} from "react-router-dom";
 import styled from "styled-components";
 import { createRealtimeSocket } from "./lib/realtime";
 
@@ -49,7 +55,7 @@ const seedJobs: Job[] = [
     status: "new",
     reached: false,
     started: false,
-    proofCount: 0
+    proofCount: 0,
   },
   {
     id: "REQ-BLR-8812",
@@ -65,7 +71,7 @@ const seedJobs: Job[] = [
     status: "assigned",
     reached: true,
     started: false,
-    proofCount: 0
+    proofCount: 0,
   },
   {
     id: "REQ-BLR-7701",
@@ -81,8 +87,8 @@ const seedJobs: Job[] = [
     status: "completed",
     reached: true,
     started: true,
-    proofCount: 3
-  }
+    proofCount: 3,
+  },
 ];
 
 type DriverState = {
@@ -104,7 +110,7 @@ function loadState(): DriverState {
         phone: "",
         online: true,
         dismissedInstall: false,
-        jobs: seedJobs
+        jobs: seedJobs,
       };
     }
     const parsed = JSON.parse(raw) as DriverState;
@@ -115,7 +121,7 @@ function loadState(): DriverState {
       phone: "",
       online: true,
       dismissedInstall: false,
-      jobs: seedJobs
+      jobs: seedJobs,
     };
   }
 }
@@ -127,7 +133,9 @@ function saveState(state: DriverState) {
 export default function App() {
   const [state, setState] = useState<DriverState>(() => loadState());
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
-  const socketRef = useRef<ReturnType<typeof createRealtimeSocket> | null>(null);
+  const socketRef = useRef<ReturnType<typeof createRealtimeSocket> | null>(
+    null,
+  );
 
   useEffect(() => saveState(state), [state]);
   useEffect(() => {
@@ -167,7 +175,7 @@ export default function App() {
           status: "new",
           reached: false,
           started: false,
-          proofCount: 0
+          proofCount: 0,
         };
 
         return { ...prev, jobs: [nextJob, ...prev.jobs] };
@@ -181,14 +189,16 @@ export default function App() {
         en_route: "assigned",
         working: "in_progress",
         completed: "completed",
-        cancelled: "rejected"
+        cancelled: "rejected",
       };
 
       setState((prev) => ({
         ...prev,
         jobs: prev.jobs.map((job) =>
-          job.id === payload.jobId ? { ...job, status: statusMap[payload.status] || job.status } : job
-        )
+          job.id === payload.jobId
+            ? { ...job, status: statusMap[payload.status] || job.status }
+            : job,
+        ),
       }));
     });
 
@@ -199,7 +209,9 @@ export default function App() {
   }, []);
 
   const derived = useMemo(() => {
-    const active = state.jobs.find((j) => j.status === "in_progress" || j.status === "assigned");
+    const active = state.jobs.find(
+      (j) => j.status === "in_progress" || j.status === "assigned",
+    );
     const newest = state.jobs.find((j) => j.status === "new");
     const completed = state.jobs.filter((j) => j.status === "completed");
     const todaysEarnings = completed.reduce((sum, j) => sum + j.amount, 0);
@@ -212,7 +224,10 @@ export default function App() {
     if (!state.online || isOffline) return;
     if (!derived.active) return;
 
-    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(derived.active.id);
+    const isUuid =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+        derived.active.id,
+      );
     if (!isUuid) return;
 
     const timer = setInterval(() => {
@@ -223,7 +238,7 @@ export default function App() {
         latitude: lat,
         longitude: lng,
         speedKmph: 25 + Math.random() * 20,
-        heading: Math.round(Math.random() * 360)
+        heading: Math.round(Math.random() * 360),
       });
     }, 15000);
 
@@ -231,48 +246,57 @@ export default function App() {
   }, [derived.active, state.online, isOffline]);
 
   const actions = {
-    login: (phone: string) => setState((s) => ({ ...s, isLoggedIn: true, phone })),
+    login: (phone: string) =>
+      setState((s) => ({ ...s, isLoggedIn: true, phone })),
     logout: () =>
       setState((s) => ({
         ...s,
         isLoggedIn: false,
         phone: "",
-        online: false
+        online: false,
       })),
     toggleOnline: () => setState((s) => ({ ...s, online: !s.online })),
     dismissInstall: () => setState((s) => ({ ...s, dismissedInstall: true })),
     acceptJob: (jobId: string) =>
       setState((s) => ({
         ...s,
-        jobs: s.jobs.map((j) => (j.id === jobId ? { ...j, status: "assigned" } : j))
+        jobs: s.jobs.map((j) =>
+          j.id === jobId ? { ...j, status: "assigned" } : j,
+        ),
       })),
     rejectJob: (jobId: string) =>
       setState((s) => ({
         ...s,
-        jobs: s.jobs.map((j) => (j.id === jobId ? { ...j, status: "rejected" } : j))
+        jobs: s.jobs.map((j) =>
+          j.id === jobId ? { ...j, status: "rejected" } : j,
+        ),
       })),
     markReached: (jobId: string) =>
       setState((s) => ({
         ...s,
-        jobs: s.jobs.map((j) => (j.id === jobId ? { ...j, reached: true } : j))
+        jobs: s.jobs.map((j) => (j.id === jobId ? { ...j, reached: true } : j)),
       })),
     workStarted: (jobId: string) =>
       setState((s) => ({
         ...s,
         jobs: s.jobs.map((j) =>
-          j.id === jobId ? { ...j, started: true, status: "in_progress" } : j
-        )
+          j.id === jobId ? { ...j, started: true, status: "in_progress" } : j,
+        ),
       })),
     uploadProof: (jobId: string) =>
       setState((s) => ({
         ...s,
-        jobs: s.jobs.map((j) => (j.id === jobId ? { ...j, proofCount: j.proofCount + 1 } : j))
+        jobs: s.jobs.map((j) =>
+          j.id === jobId ? { ...j, proofCount: j.proofCount + 1 } : j,
+        ),
       })),
     complete: (jobId: string) =>
       setState((s) => ({
         ...s,
-        jobs: s.jobs.map((j) => (j.id === jobId ? { ...j, status: "completed" } : j))
-      }))
+        jobs: s.jobs.map((j) =>
+          j.id === jobId ? { ...j, status: "completed" } : j,
+        ),
+      })),
   };
 
   return (
@@ -312,7 +336,7 @@ function AppShell({
   state,
   isOffline,
   derived,
-  actions
+  actions,
 }: {
   state: DriverState;
   isOffline: boolean;
@@ -381,7 +405,11 @@ function AppShell({
       <Route
         path="/map"
         element={
-          <MapScreen online={state.online} isOffline={isOffline} active={derived.active} />
+          <MapScreen
+            online={state.online}
+            isOffline={isOffline}
+            active={derived.active}
+          />
         }
       />
       <Route
@@ -436,7 +464,10 @@ function LoginScreen({ onLogin }: { onLogin: (phone: string) => void }) {
         {step === "phone" ? (
           <>
             <label>Mobile Number</label>
-            <Input value={phone} onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))} />
+            <Input
+              value={phone}
+              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
+            />
             <Action style={{ marginTop: 10 }} onClick={sendOtp}>
               Send OTP
             </Action>
@@ -466,7 +497,11 @@ function LoginScreen({ onLogin }: { onLogin: (phone: string) => void }) {
           </>
         )}
       </Card>
-      <small style={{ color: message.includes("Invalid") ? "#b91c1c" : "#334155" }}>{message}</small>
+      <small
+        style={{ color: message.includes("Invalid") ? "#b91c1c" : "#334155" }}
+      >
+        {message}
+      </small>
     </SafeArea>
   );
 }
@@ -479,7 +514,7 @@ function HomeScreen({
   todaysEarnings,
   showInstall,
   onDismissInstall,
-  onToggleOnline
+  onToggleOnline,
 }: {
   phone: string;
   online: boolean;
@@ -506,8 +541,12 @@ function HomeScreen({
         ) : null}
         <Row>
           <div>
-            <strong style={{ color: "#0A2540" }}>Hi, {phone.slice(-4)} Driver</strong>
-            <p style={{ margin: 0, color: "#64748B", fontSize: 13 }}>Bengaluru Central</p>
+            <strong style={{ color: "#0A2540" }}>
+              Hi, {phone.slice(-4)} Driver
+            </strong>
+            <p style={{ margin: 0, color: "#64748B", fontSize: 13 }}>
+              Bengaluru Central
+            </p>
           </div>
           <Toggle $on={online && !isOffline} onClick={onToggleOnline}>
             <Power size={14} /> {online && !isOffline ? "Online" : "Offline"}
@@ -515,7 +554,9 @@ function HomeScreen({
         </Row>
         <Card>
           <small style={{ color: "#64748B" }}>Today&apos;s earnings</small>
-          <h2 style={{ margin: "4px 0" }}>₹{todaysEarnings.toLocaleString("en-IN")}</h2>
+          <h2 style={{ margin: "4px 0" }}>
+            ₹{todaysEarnings.toLocaleString("en-IN")}
+          </h2>
         </Card>
         <Card>
           <strong>Current job</strong>
@@ -527,10 +568,14 @@ function HomeScreen({
               <NavigateButton to="/active-job">Open active job</NavigateButton>
             </>
           ) : (
-            <p style={{ margin: "6px 0", color: "#64748B" }}>Waiting for new assignment</p>
+            <p style={{ margin: "6px 0", color: "#64748B" }}>
+              Waiting for new assignment
+            </p>
           )}
         </Card>
-        <NavigateButton to="/job-alert">Check new job notification</NavigateButton>
+        <NavigateButton to="/job-alert">
+          Check new job notification
+        </NavigateButton>
       </SafeArea>
     </ScreenWithNav>
   );
@@ -541,7 +586,7 @@ function JobAlertScreen({
   isOffline,
   job,
   onAccept,
-  onReject
+  onReject,
 }: {
   online: boolean;
   isOffline: boolean;
@@ -570,11 +615,21 @@ function JobAlertScreen({
         </NotifyBanner>
         <Card>
           <h3 style={{ margin: "0 0 6px" }}>{job.id}</h3>
-          <p style={{ margin: "4px 0" }}><b>Variant:</b> {job.variant} ({job.capacity})</p>
-          <p style={{ margin: "4px 0" }}><b>Customer:</b> {job.customer} | {job.mobile}</p>
-          <p style={{ margin: "4px 0" }}><b>Location:</b> {job.location}</p>
-          <p style={{ margin: "4px 0" }}><b>Schedule:</b> {job.schedule}</p>
-          <p style={{ margin: "4px 0" }}><b>Load:</b> {job.load}</p>
+          <p style={{ margin: "4px 0" }}>
+            <b>Variant:</b> {job.variant} ({job.capacity})
+          </p>
+          <p style={{ margin: "4px 0" }}>
+            <b>Customer:</b> {job.customer} | {job.mobile}
+          </p>
+          <p style={{ margin: "4px 0" }}>
+            <b>Location:</b> {job.location}
+          </p>
+          <p style={{ margin: "4px 0" }}>
+            <b>Schedule:</b> {job.schedule}
+          </p>
+          <p style={{ margin: "4px 0" }}>
+            <b>Load:</b> {job.load}
+          </p>
           <MapBox>Map snippet</MapBox>
         </Card>
         <Action
@@ -597,7 +652,11 @@ function JobAlertScreen({
         >
           Reject
         </Action>
-        {disabled ? <small style={{ color: "#b45309" }}>Go online to respond to new jobs.</small> : null}
+        {disabled ? (
+          <small style={{ color: "#b45309" }}>
+            Go online to respond to new jobs.
+          </small>
+        ) : null}
       </SafeArea>
     </ScreenWithNav>
   );
@@ -610,7 +669,7 @@ function ActiveJobScreen({
   onReached,
   onStarted,
   onUpload,
-  onComplete
+  onComplete,
 }: {
   online: boolean;
   isOffline: boolean;
@@ -651,17 +710,37 @@ function ActiveJobScreen({
         ) : null}
         <Card>
           <small style={{ color: "#64748B" }}>Live timer</small>
-          <h2 style={{ margin: "4px 0" }}>{hh}:{mm}:{ss}</h2>
-          <small>{job.id} | {job.variant}</small>
+          <h2 style={{ margin: "4px 0" }}>
+            {hh}:{mm}:{ss}
+          </h2>
+          <small>
+            {job.id} | {job.variant}
+          </small>
         </Card>
         <TwoCol>
-          <Action><Phone size={16} /> Call</Action>
-          <Action $tone="success"><Waypoints size={16} /> WhatsApp</Action>
+          <Action>
+            <Phone size={16} /> Call
+          </Action>
+          <Action $tone="success">
+            <Waypoints size={16} /> WhatsApp
+          </Action>
         </TwoCol>
-        <Action disabled={disabled} onClick={() => onReached(job.id)}>I&apos;ve Reached Site</Action>
-        <Action disabled={disabled} onClick={() => onStarted(job.id)}>Work Started</Action>
-        <Action disabled={disabled} onClick={() => onUpload(job.id)}><Camera size={16} /> Upload Proof Photos ({job.proofCount})</Action>
-        <Action $tone="danger" disabled={disabled} onClick={() => onComplete(job.id)}>Job Completed</Action>
+        <Action disabled={disabled} onClick={() => onReached(job.id)}>
+          I&apos;ve Reached Site
+        </Action>
+        <Action disabled={disabled} onClick={() => onStarted(job.id)}>
+          Work Started
+        </Action>
+        <Action disabled={disabled} onClick={() => onUpload(job.id)}>
+          <Camera size={16} /> Upload Proof Photos ({job.proofCount})
+        </Action>
+        <Action
+          $tone="danger"
+          disabled={disabled}
+          onClick={() => onComplete(job.id)}
+        >
+          Job Completed
+        </Action>
         <Card>
           <strong>Safety checklist</strong>
           <ListItem done={job.reached}>Helmet + PPE verified</ListItem>
@@ -677,20 +756,34 @@ function ActiveJobScreen({
 function JobsScreen({ jobs }: { jobs: Job[] }) {
   const [tab, setTab] = useState<"assigned" | "completed">("assigned");
   const filtered = jobs.filter((j) =>
-    tab === "assigned" ? j.status === "assigned" || j.status === "in_progress" : j.status === "completed"
+    tab === "assigned"
+      ? j.status === "assigned" || j.status === "in_progress"
+      : j.status === "completed",
   );
   return (
     <ScreenWithNav active="jobs">
       <SafeArea>
         <TabRow>
-          <TabBtn $active={tab === "assigned"} onClick={() => setTab("assigned")}>Assigned</TabBtn>
-          <TabBtn $active={tab === "completed"} onClick={() => setTab("completed")}>Completed</TabBtn>
+          <TabBtn
+            $active={tab === "assigned"}
+            onClick={() => setTab("assigned")}
+          >
+            Assigned
+          </TabBtn>
+          <TabBtn
+            $active={tab === "completed"}
+            onClick={() => setTab("completed")}
+          >
+            Completed
+          </TabBtn>
         </TabRow>
         {filtered.map((job) => (
           <Card key={job.id}>
             <strong>{job.id}</strong>
             <p style={{ margin: "4px 0" }}>{job.location}</p>
-            <small style={{ color: "#64748B" }}>{job.variant} | ₹{job.amount.toLocaleString("en-IN")}</small>
+            <small style={{ color: "#64748B" }}>
+              {job.variant} | ₹{job.amount.toLocaleString("en-IN")}
+            </small>
           </Card>
         ))}
       </SafeArea>
@@ -701,7 +794,7 @@ function JobsScreen({ jobs }: { jobs: Job[] }) {
 function MapScreen({
   online,
   isOffline,
-  active
+  active,
 }: {
   online: boolean;
   isOffline: boolean;
@@ -713,11 +806,16 @@ function MapScreen({
         <Card>
           <strong>Live map</strong>
           <MapBox>
-            {active ? `${active.id} route: Yard to ${active.location}` : "No active route"}
+            {active
+              ? `${active.id} route: Yard to ${active.location}`
+              : "No active route"}
           </MapBox>
         </Card>
         <small style={{ color: "#64748B" }}>
-          Status: {online && !isOffline ? "Online & tracking active" : "Offline - map updates paused"}
+          Status:{" "}
+          {online && !isOffline
+            ? "Online & tracking active"
+            : "Offline - map updates paused"}
         </small>
       </SafeArea>
     </ScreenWithNav>
@@ -728,7 +826,7 @@ function ProfileScreen({
   phone,
   earnings,
   completed,
-  onLogout
+  onLogout,
 }: {
   phone: string;
   earnings: number;
@@ -743,14 +841,26 @@ function ProfileScreen({
             <Avatar />
             <div>
               <strong>Irfan Khan</strong>
-              <p style={{ margin: 0, color: "#64748B", fontSize: 13 }}>Driver ID: DRV-2042</p>
+              <p style={{ margin: 0, color: "#64748B", fontSize: 13 }}>
+                Driver ID: DRV-2042
+              </p>
             </div>
           </Row>
-          <p style={{ margin: "8px 0 0" }}><b>Phone:</b> +91 {phone}</p>
-          <p style={{ margin: "4px 0 0" }}><b>Assigned crane:</b> 50T Rough Terrain | KA-53-MR-2281</p>
-          <p style={{ margin: "4px 0 0" }}><b>Today&apos;s earnings:</b> ₹{earnings.toLocaleString("en-IN")}</p>
-          <p style={{ margin: "4px 0 0" }}><b>Rating:</b> 4.8 (Completed jobs today: {completed})</p>
-          <Action $tone="danger" style={{ marginTop: 10 }} onClick={onLogout}>Logout</Action>
+          <p style={{ margin: "8px 0 0" }}>
+            <b>Phone:</b> +91 {phone}
+          </p>
+          <p style={{ margin: "4px 0 0" }}>
+            <b>Assigned crane:</b> 50T Rough Terrain | KA-53-MR-2281
+          </p>
+          <p style={{ margin: "4px 0 0" }}>
+            <b>Today&apos;s earnings:</b> ₹{earnings.toLocaleString("en-IN")}
+          </p>
+          <p style={{ margin: "4px 0 0" }}>
+            <b>Rating:</b> 4.8 (Completed jobs today: {completed})
+          </p>
+          <Action $tone="danger" style={{ marginTop: 10 }} onClick={onLogout}>
+            Logout
+          </Action>
         </Card>
       </SafeArea>
     </ScreenWithNav>
@@ -759,7 +869,7 @@ function ProfileScreen({
 
 function ScreenWithNav({
   active,
-  children
+  children,
 }: {
   active: "home" | "jobs" | "map" | "profile";
   children: React.ReactNode;
@@ -770,17 +880,23 @@ function ScreenWithNav({
     home: "/home",
     jobs: "/jobs",
     map: "/map",
-    profile: "/profile"
+    profile: "/profile",
   };
   return (
     <>
       {children}
       <BottomNav>
-        <NavItem $active={active === "home"} onClick={() => navigate(links.home)}>
+        <NavItem
+          $active={active === "home"}
+          onClick={() => navigate(links.home)}
+        >
           <Home size={18} />
           Home
         </NavItem>
-        <NavItem $active={active === "jobs"} onClick={() => navigate(links.jobs)}>
+        <NavItem
+          $active={active === "jobs"}
+          onClick={() => navigate(links.jobs)}
+        >
           <Wallet size={18} />
           Jobs
         </NavItem>
@@ -788,7 +904,10 @@ function ScreenWithNav({
           <MapPinned size={18} />
           Map
         </NavItem>
-        <NavItem $active={active === "profile"} onClick={() => navigate(links.profile)}>
+        <NavItem
+          $active={active === "profile"}
+          onClick={() => navigate(links.profile)}
+        >
           <UserRound size={18} />
           Profile
         </NavItem>
@@ -802,16 +921,36 @@ function ScreenWithNav({
   );
 }
 
-function ListItem({ done, children }: { done: boolean; children: React.ReactNode }) {
+function ListItem({
+  done,
+  children,
+}: {
+  done: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 8, marginTop: 6, color: done ? "#166534" : "#475569" }}>
+    <span
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 8,
+        marginTop: 6,
+        color: done ? "#166534" : "#475569",
+      }}
+    >
       <CheckCircle2 size={15} color={done ? "#22C55E" : "#94a3b8"} />
       {children}
     </span>
   );
 }
 
-function NavigateButton({ to, children }: { to: string; children: React.ReactNode }) {
+function NavigateButton({
+  to,
+  children,
+}: {
+  to: string;
+  children: React.ReactNode;
+}) {
   const navigate = useNavigate();
   return <Action onClick={() => navigate(to)}>{children}</Action>;
 }
@@ -965,7 +1104,8 @@ const NavItem = styled.button<{ $active?: boolean }>`
   background: transparent;
   display: grid;
   place-items: center;
-  color: ${({ $active, theme }) => ($active ? theme.colors.primary : "#64748B")};
+  color: ${({ $active, theme }) =>
+    $active ? theme.colors.primary : "#64748B"};
   font-size: 12px;
   font-weight: ${({ $active }) => ($active ? 700 : 600)};
 `;

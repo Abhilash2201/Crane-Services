@@ -1,6 +1,11 @@
 import { useMemo, useState } from "react";
 import styled from "styled-components";
-import { Card, CardContent, CardHeader, CardTitle } from "../components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "../components/ui/card";
 import { Tabs } from "../components/ui/tabs";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
@@ -60,9 +65,17 @@ export function ManageUsersPage() {
     return users
       .filter((user) => user.role === tab)
       .filter((user) =>
-        `${user.name} ${user.phone} ${user.email}`.toLowerCase().includes(query.toLowerCase())
+        `${user.name} ${user.phone} ${user.email}`
+          .toLowerCase()
+          .includes(query.toLowerCase()),
       )
-      .filter((user) => (status === "All" ? true : status === "Active" ? user.status : !user.status))
+      .filter((user) =>
+        status === "All"
+          ? true
+          : status === "Active"
+            ? user.status
+            : !user.status,
+      )
       .filter((user) => (city === "All" ? true : user.city === city))
       .filter((user) => {
         if (verified === "All") {
@@ -79,22 +92,39 @@ export function ManageUsersPage() {
         <CardTitle>Manage Users</CardTitle>
       </CardHeader>
       <CardContent>
-        <Tabs options={["Customers", "Crane Owners", "Drivers"]} value={tab} onChange={setTab} />
+        <Tabs
+          options={["Customers", "Crane Owners", "Drivers"]}
+          value={tab}
+          onChange={setTab}
+        />
 
         <Filters style={{ marginTop: 12 }}>
-          <Input placeholder="Search by name, phone, email" value={query} onChange={(event) => setQuery(event.target.value)} />
-          <Select value={status} onChange={(event) => setStatus(event.target.value)}>
+          <Input
+            placeholder="Search by name, phone, email"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+          <Select
+            value={status}
+            onChange={(event) => setStatus(event.target.value)}
+          >
             <option>All</option>
             <option>Active</option>
             <option>Inactive</option>
           </Select>
-          <Select value={city} onChange={(event) => setCity(event.target.value)}>
+          <Select
+            value={city}
+            onChange={(event) => setCity(event.target.value)}
+          >
             <option>All</option>
             <option>Bengaluru</option>
             <option>Mumbai</option>
             <option>Delhi</option>
           </Select>
-          <Select value={verified} onChange={(event) => setVerified(event.target.value)}>
+          <Select
+            value={verified}
+            onChange={(event) => setVerified(event.target.value)}
+          >
             <option>All</option>
             <option>Verified</option>
             <option>Unverified</option>
@@ -102,9 +132,15 @@ export function ManageUsersPage() {
         </Filters>
 
         <div style={{ marginBottom: 10, display: "flex", gap: 8 }}>
-          <Button size="sm" variant="outline">Bulk Activate</Button>
-          <Button size="sm" variant="outline">Bulk Suspend</Button>
-          <Button size="sm" variant="danger">Bulk Delete</Button>
+          <Button size="sm" variant="outline">
+            Bulk Activate
+          </Button>
+          <Button size="sm" variant="outline">
+            Bulk Suspend
+          </Button>
+          <Button size="sm" variant="danger">
+            Bulk Delete
+          </Button>
         </div>
 
         <TableWrap>
@@ -135,13 +171,23 @@ export function ManageUsersPage() {
                     </Badge>
                   </td>
                   <td>
-                    <Switch checked={user.status} onCheckedChange={() => undefined} ariaLabel="status" />
+                    <Switch
+                      checked={user.status}
+                      onCheckedChange={() => undefined}
+                      ariaLabel="status"
+                    />
                   </td>
                   <td>
                     <div style={{ display: "flex", gap: 6 }}>
-                      <Button size="sm" variant="outline">View</Button>
-                      <Button size="sm" variant="outline">Suspend</Button>
-                      <Button size="sm" variant="danger">Delete</Button>
+                      <Button size="sm" variant="outline">
+                        View
+                      </Button>
+                      <Button size="sm" variant="outline">
+                        Suspend
+                      </Button>
+                      <Button size="sm" variant="danger">
+                        Delete
+                      </Button>
                     </div>
                   </td>
                 </tr>

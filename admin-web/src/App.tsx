@@ -16,7 +16,11 @@ function App() {
 
   return (
     <Routes>
-      <Route element={<AdminLayout collapsed={collapsed} setCollapsed={setCollapsed} />}>
+      <Route
+        element={
+          <AdminLayout collapsed={collapsed} setCollapsed={setCollapsed} />
+        }
+      >
         <Route path="/" element={<OverviewPage />} />
         <Route path="/users" element={<ManageUsersPage />} />
         <Route path="/approvals" element={<ApprovalsPage />} />

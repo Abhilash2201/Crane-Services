@@ -10,11 +10,11 @@ export const theme = {
     text: "#0F172A",
     muted: "#64748B",
     border: "#E2E8F0",
-    white: "#FFFFFF"
+    white: "#FFFFFF",
   },
   shadows: {
     sm: "0 3px 12px rgba(10, 37, 64, 0.12)",
-    md: "0 14px 28px rgba(10, 37, 64, 0.16)"
+    md: "0 14px 28px rgba(10, 37, 64, 0.16)",
   },
   mixins: {
     card: css`
@@ -22,6 +22,6 @@ export const theme = {
       border: 1px solid #e2e8f0;
       border-radius: 14px;
       box-shadow: 0 3px 12px rgba(10, 37, 64, 0.12);
-    `
-  }
+    `,
+  },
 };

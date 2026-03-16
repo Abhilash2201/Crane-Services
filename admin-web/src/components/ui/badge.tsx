@@ -4,11 +4,26 @@ import styled, { css } from "styled-components";
 type Variant = "default" | "success" | "danger" | "warning" | "info";
 
 const pillStyles = {
-  default: css`background: #eef2f7; color: #334155;`,
-  success: css`background: #e8fbe9; color: #15803d;`,
-  danger: css`background: #fee2e2; color: #b91c1c;`,
-  warning: css`background: #fef3c7; color: #b45309;`,
-  info: css`background: #e0f2fe; color: #0c4a6e;`
+  default: css`
+    background: #eef2f7;
+    color: #334155;
+  `,
+  success: css`
+    background: #e8fbe9;
+    color: #15803d;
+  `,
+  danger: css`
+    background: #fee2e2;
+    color: #b91c1c;
+  `,
+  warning: css`
+    background: #fef3c7;
+    color: #b45309;
+  `,
+  info: css`
+    background: #e0f2fe;
+    color: #0c4a6e;
+  `,
 };
 
 const StyledBadge = styled.span<{ $variant: Variant }>`
@@ -21,6 +36,9 @@ const StyledBadge = styled.span<{ $variant: Variant }>`
   ${({ $variant }) => pillStyles[$variant]}
 `;
 
-export function Badge({ variant = "default", ...props }: HTMLAttributes<HTMLSpanElement> & { variant?: Variant }) {
+export function Badge({
+  variant = "default",
+  ...props
+}: HTMLAttributes<HTMLSpanElement> & { variant?: Variant }) {
   return <StyledBadge $variant={variant} {...props} />;
 }

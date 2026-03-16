@@ -9,22 +9,23 @@ const buttonVariants = cva("button", {
       outline: "outline",
       ghost: "ghost",
       success: "success",
-      danger: "danger"
+      danger: "danger",
     },
     size: {
       sm: "sm",
       default: "default",
       lg: "lg",
-      icon: "icon"
-    }
+      icon: "icon",
+    },
   },
   defaultVariants: {
     variant: "default",
-    size: "default"
-  }
+    size: "default",
+  },
 });
 
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof buttonVariants>;
+type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> &
+  VariantProps<typeof buttonVariants>;
 
 const StyledButton = styled.button<ButtonProps>`
   border-radius: 10px;
@@ -38,10 +39,26 @@ const StyledButton = styled.button<ButtonProps>`
   gap: 8px;
 
   ${({ size }) => {
-    if (size === "sm") return css`padding: 7px 12px; min-height: 34px;`;
-    if (size === "lg") return css`padding: 13px 18px; min-height: 46px;`;
-    if (size === "icon") return css`width: 38px; height: 38px; padding: 0;`;
-    return css`padding: 10px 14px; min-height: 40px;`;
+    if (size === "sm")
+      return css`
+        padding: 7px 12px;
+        min-height: 34px;
+      `;
+    if (size === "lg")
+      return css`
+        padding: 13px 18px;
+        min-height: 46px;
+      `;
+    if (size === "icon")
+      return css`
+        width: 38px;
+        height: 38px;
+        padding: 0;
+      `;
+    return css`
+      padding: 10px 14px;
+      min-height: 40px;
+    `;
   }}
 
   ${({ theme, variant }) => {
@@ -107,7 +124,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className: _className, variant, size, ...props }, ref) => {
     buttonVariants({ variant, size });
     return <StyledButton ref={ref} variant={variant} size={size} {...props} />;
-  }
+  },
 );
 
 Button.displayName = "Button";
