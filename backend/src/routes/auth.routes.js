@@ -2,7 +2,11 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const { z } = require("zod");
 const { sql } = require("../db/neon");
-const { issueAuthTokens, rotateRefreshToken, revokeRefreshToken } = require("../services/authTokens");
+const {
+  issueAuthTokens,
+  rotateRefreshToken,
+  revokeRefreshToken,
+} = require("../services/authTokens");
 const { createAndSendOtp, verifyOtp } = require("../services/otp");
 const { asyncHandler } = require("../utils/asyncHandler");
 const { HttpError } = require("../utils/httpError");
@@ -15,38 +19,39 @@ const registerSchema = z.object({
   email: z.string().email(),
   phone: z.string().min(7).optional(),
   password: z.string().min(6),
-  role: z.enum(["admin", "customer", "owner", "driver"])
+  role: z.enum(["admin", "customer", "owner", "driver"]),
 });
 
 const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(6)
+  password: z.string().min(6),
 });
 
 const refreshSchema = z.object({
-  refreshToken: z.string().min(32)
+  refreshToken: z.string().min(32),
 });
 
 const emailSchema = z.object({
-  email: z.string().email()
+  email: z.string().email(),
 });
 
 const verifyEmailSchema = z.object({
   email: z.string().email(),
-  otp: z.string().length(6)
+  otp: z.string().length(6),
 });
 
 const resetPasswordSchema = z.object({
   email: z.string().email(),
   otp: z.string().length(6),
-  newPassword: z.string().min(6)
+  newPassword: z.string().min(6),
 });
 
 router.post(
   "/register",
   asyncHandler(async (req, res) => {
     const payload = registerSchema.parse(req.body);
-    const existing = await sql`SELECT id FROM users WHERE email = ${payload.email} LIMIT 1`;
+    const existing =
+      await sql`SELECT id FROM users WHERE email = ${payload.email} LIMIT 1`;
     if (existing.length) throw new HttpError(409, "Email already in use");
 
     const passwordHash = await bcrypt.hash(payload.password, 10);
@@ -61,12 +66,12 @@ router.post(
     await createAndSendOtp({
       email: user.email,
       purpose: "email_verification",
-      userId: user.id
+      userId: user.id,
     });
     const tokens = await issueAuthTokens({
       user,
       userAgent: req.headers["user-agent"],
-      ipAddress: req.ip
+      ipAddress: req.ip,
     });
 
     res.status(201).json({
@@ -77,14 +82,14 @@ router.post(
           name: user.name,
           email: user.email,
           role: user.role,
-          emailVerified: Boolean(user.email_verified_at)
+          emailVerified: Boolean(user.email_verified_at),
         },
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
-        refreshExpiresAt: tokens.expiresAt
-      }
+        refreshExpiresAt: tokens.expiresAt,
+      },
     });
-  })
+  }),
 );
 
 router.post(
@@ -108,19 +113,24 @@ router.post(
     const tokens = await issueAuthTokens({
       user,
       userAgent: req.headers["user-agent"],
-      ipAddress: req.ip
+      ipAddress: req.ip,
     });
 
     res.json({
       success: true,
       data: {
-        user: { id: user.id, name: user.name, email: user.email, role: user.role },
+        user: {
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+        },
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
-        refreshExpiresAt: tokens.expiresAt
-      }
+        refreshExpiresAt: tokens.expiresAt,
+      },
     });
-  })
+  }),
 );
 
 router.post(
@@ -129,7 +139,7 @@ router.post(
     const payload = refreshSchema.parse(req.body);
     const next = await rotateRefreshToken(payload.refreshToken, {
       userAgent: req.headers["user-agent"],
-      ipAddress: req.ip
+      ipAddress: req.ip,
     });
     res.json({
       success: true,
@@ -138,14 +148,14 @@ router.post(
           id: next.user.id,
           name: next.user.name,
           email: next.user.email,
-          role: next.user.role
+          role: next.user.role,
         },
         accessToken: next.accessToken,
         refreshToken: next.refreshToken,
-        refreshExpiresAt: next.refreshExpiresAt
-      }
+        refreshExpiresAt: next.refreshExpiresAt,
+      },
     });
-  })
+  }),
 );
 
 router.post(
@@ -154,23 +164,27 @@ router.post(
     const payload = refreshSchema.parse(req.body);
     await revokeRefreshToken(payload.refreshToken);
     res.json({ success: true });
-  })
+  }),
 );
 
 router.post(
   "/email/request-otp",
   asyncHandler(async (req, res) => {
     const payload = emailSchema.parse(req.body);
-    const users = await sql`SELECT id FROM users WHERE email = ${payload.email.toLowerCase()} LIMIT 1`;
+    const users =
+      await sql`SELECT id FROM users WHERE email = ${payload.email.toLowerCase()} LIMIT 1`;
     if (users.length) {
-      await createAndSendOtp({
+      const info = await createAndSendOtp({
         email: payload.email,
         purpose: "email_verification",
-        userId: users[0].id
+        userId: users[0].id,
       });
+      if (info?.disabled || (info?.rejected && info.rejected.length)) {
+        throw new HttpError(502, "Email delivery failed");
+      }
     }
     res.json({ success: true });
-  })
+  }),
 );
 
 router.post(
@@ -180,7 +194,7 @@ router.post(
     await verifyOtp({
       email: payload.email,
       purpose: "email_verification",
-      otp: payload.otp
+      otp: payload.otp,
     });
     const rows = await sql`
       UPDATE users
@@ -189,23 +203,24 @@ router.post(
       RETURNING id, email, email_verified_at
     `;
     res.json({ success: true, data: rows[0] || null });
-  })
+  }),
 );
 
 router.post(
   "/password/request-reset",
   asyncHandler(async (req, res) => {
     const payload = emailSchema.parse(req.body);
-    const users = await sql`SELECT id FROM users WHERE email = ${payload.email.toLowerCase()} LIMIT 1`;
+    const users =
+      await sql`SELECT id FROM users WHERE email = ${payload.email.toLowerCase()} LIMIT 1`;
     if (users.length) {
       await createAndSendOtp({
         email: payload.email,
         purpose: "password_reset",
-        userId: users[0].id
+        userId: users[0].id,
       });
     }
     res.json({ success: true });
-  })
+  }),
 );
 
 router.post(
@@ -215,7 +230,7 @@ router.post(
     await verifyOtp({
       email: payload.email,
       purpose: "password_reset",
-      otp: payload.otp
+      otp: payload.otp,
     });
     const passwordHash = await bcrypt.hash(payload.newPassword, 10);
     await sql`
@@ -224,7 +239,7 @@ router.post(
       WHERE email = ${payload.email.toLowerCase()}
     `;
     res.json({ success: true });
-  })
+  }),
 );
 
 router.get(
@@ -240,7 +255,7 @@ router.get(
     if (!result.length) throw new HttpError(404, "User not found");
 
     res.json({ success: true, data: result[0] });
-  })
+  }),
 );
 
 module.exports = router;

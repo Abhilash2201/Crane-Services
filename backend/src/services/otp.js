@@ -13,12 +13,13 @@ async function createAndSendOtp({ email, purpose, userId }) {
     VALUES (${userId || null}, ${email.toLowerCase()}, ${purpose}, ${codeHash}, ${expiresAt.toISOString()})
   `;
 
-  await sendMail({
+  const mailInfo = await sendMail({
     to: email,
     subject: `Crane Services OTP for ${purpose}`,
     text: `Your OTP is ${code}. It expires in 10 minutes.`,
     html: `<p>Your OTP is <b>${code}</b>. It expires in 10 minutes.</p>`
   });
+  return mailInfo;
 }
 
 async function verifyOtp({ email, purpose, otp }) {
