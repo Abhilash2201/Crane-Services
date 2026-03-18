@@ -27,6 +27,7 @@ module.exports = {
   smtpUser: process.env.SMTP_USER || "",
   smtpPass: process.env.SMTP_PASS || "",
   smtpFrom: process.env.SMTP_FROM || "noreply@crane-services.local",
+  resendApiKey: process.env.RESEND_API_KEY || "",
   stripeSecretKey: process.env.STRIPE_SECRET_KEY || "",
   stripeWebhookSecret: process.env.STRIPE_WEBHOOK_SECRET || ""
 };

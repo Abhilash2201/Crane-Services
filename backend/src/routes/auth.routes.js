@@ -63,11 +63,11 @@ router.post(
     `;
 
     const user = result[0];
-    await createAndSendOtp({
+    const otpSendInfo = await createAndSendOtp({
       email: user.email,
       purpose: "email_verification",
       userId: user.id,
-    });
+    }).catch((err) => console.error("OTP Error:", err));
     const tokens = await issueAuthTokens({
       user,
       userAgent: req.headers["user-agent"],
@@ -87,6 +87,7 @@ router.post(
         accessToken: tokens.accessToken,
         refreshToken: tokens.refreshToken,
         refreshExpiresAt: tokens.expiresAt,
+        otpSendInfo,
       },
     });
   }),
@@ -173,8 +174,9 @@ router.post(
     const payload = emailSchema.parse(req.body);
     const users =
       await sql`SELECT id FROM users WHERE email = ${payload.email.toLowerCase()} LIMIT 1`;
+    let info = null;
     if (users.length) {
-      const info = await createAndSendOtp({
+      info = await createAndSendOtp({
         email: payload.email,
         purpose: "email_verification",
         userId: users[0].id,
@@ -183,7 +185,7 @@ router.post(
         throw new HttpError(502, "Email delivery failed");
       }
     }
-    res.json({ success: true });
+    res.json({ success: true, infoEmail: info });
   }),
 );
 

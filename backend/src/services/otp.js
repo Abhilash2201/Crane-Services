@@ -2,6 +2,8 @@ const { sql } = require("../db/neon");
 const { sha256, randomOtp } = require("../utils/crypto");
 const { sendMail } = require("./mailer");
 const { HttpError } = require("../utils/httpError");
+const { Resend } = require("resend");
+const env = require("../config/env");
 
 async function createAndSendOtp({ email, purpose, userId }) {
   const code = randomOtp();
@@ -13,13 +15,18 @@ async function createAndSendOtp({ email, purpose, userId }) {
     VALUES (${userId || null}, ${email.toLowerCase()}, ${purpose}, ${codeHash}, ${expiresAt.toISOString()})
   `;
 
-  const mailInfo = await sendMail({
-    to: email,
-    subject: `Crane Services OTP for ${purpose}`,
-    text: `Your OTP is ${code}. It expires in 10 minutes.`,
-    html: `<p>Your OTP is <b>${code}</b>. It expires in 10 minutes.</p>`
-  });
-  return mailInfo;
+  let resendInfo = null;
+  if (env.resendApiKey) {
+    const resend = new Resend(env.resendApiKey);
+    resendInfo = await resend.emails.send({
+      from: env.smtpFrom,
+      to: email,
+      subject: `Crane Services OTP for ${purpose}`,
+      text: `Your OTP is ${code}. It expires in 10 minutes.`,
+      html: `<p>Your OTP is <b>${code}</b>. It expires in 10 minutes.resend</p>`,
+    });
+  }
+  return { resendInfo };
 }
 
 async function verifyOtp({ email, purpose, otp }) {
@@ -36,8 +43,10 @@ async function verifyOtp({ email, purpose, otp }) {
 
   if (!rows.length) throw new HttpError(400, "OTP not found");
   const record = rows[0];
-  if (new Date(record.expires_at).getTime() < Date.now()) throw new HttpError(400, "OTP expired");
-  if (record.attempts >= 5) throw new HttpError(429, "Too many invalid attempts");
+  if (new Date(record.expires_at).getTime() < Date.now())
+    throw new HttpError(400, "OTP expired");
+  if (record.attempts >= 5)
+    throw new HttpError(429, "Too many invalid attempts");
 
   if (codeHash !== (await getOtpHash(record.id))) {
     await sql`UPDATE otp_verifications SET attempts = attempts + 1 WHERE id = ${record.id}`;
@@ -49,7 +58,8 @@ async function verifyOtp({ email, purpose, otp }) {
 }
 
 async function getOtpHash(id) {
-  const rows = await sql`SELECT code_hash FROM otp_verifications WHERE id = ${id} LIMIT 1`;
+  const rows =
+    await sql`SELECT code_hash FROM otp_verifications WHERE id = ${id} LIMIT 1`;
   return rows[0]?.code_hash;
 }
 
