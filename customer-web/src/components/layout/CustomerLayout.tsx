@@ -173,7 +173,9 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
               <NavItem to="/dashboard">My Requests</NavItem>
             ) : null}
             <NavItem to="/new-request">New Request</NavItem>
-            <NavItem to="/tracking/REQ-DEL-4432">Live Tracking</NavItem>
+            {isAuthenticated ? (
+              <NavItem to="/tracking/latest">Live Tracking</NavItem>
+            ) : null}
             {isAuthenticated ? (
               <Button variant="outline" size="sm" onClick={handleLogout}>
                 Logout

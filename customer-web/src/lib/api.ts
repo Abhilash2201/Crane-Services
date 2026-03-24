@@ -37,9 +37,9 @@ api.interceptors.request.use((config) => {
   const auth = readAuth();
   if (auth?.accessToken && !config.headers?.Authorization) {
     config.headers = {
-      ...config.headers,
+      ...(config.headers || {}),
       Authorization: `Bearer ${auth.accessToken}`,
-    };
+    } as any;
   }
   return config;
 });

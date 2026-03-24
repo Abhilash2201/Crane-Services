@@ -25,6 +25,8 @@ import { createRealtimeSocket } from "./lib/realtime";
 type JobStatus = "new" | "assigned" | "in_progress" | "completed" | "rejected";
 type Job = {
   id: string;
+  requestId?: string;
+  jobId?: string;
   variant: string;
   capacity: string;
   customer: string;
@@ -43,6 +45,7 @@ type Job = {
 const seedJobs: Job[] = [
   {
     id: "REQ-BLR-9910",
+    requestId: "REQ-BLR-9910",
     variant: "50T Rough Terrain",
     capacity: "50T",
     customer: "Brigade Infra Projects",
@@ -59,6 +62,7 @@ const seedJobs: Job[] = [
   },
   {
     id: "REQ-BLR-8812",
+    requestId: "REQ-BLR-8812",
     variant: "25T Mobile",
     capacity: "25T",
     customer: "Kaveri Structures",
@@ -75,6 +79,7 @@ const seedJobs: Job[] = [
   },
   {
     id: "REQ-BLR-7701",
+    requestId: "REQ-BLR-7701",
     variant: "Tower Crane",
     capacity: "80T",
     customer: "SRS Buildwell",
@@ -156,13 +161,19 @@ export default function App() {
 
     socket.on("dispatch:job_assigned", (payload) => {
       setState((prev) => {
-        const jobId = payload?.request_id || payload?.id;
-        if (!jobId) return prev;
-        const exists = prev.jobs.some((job) => job.id === jobId);
+        const requestId = payload?.request_id || payload?.requestId;
+        const jobId = payload?.id;
+        const displayId = requestId || jobId;
+        if (!displayId) return prev;
+        const exists = prev.jobs.some(
+          (job) => job.jobId === jobId || job.id === displayId,
+        );
         if (exists) return prev;
 
         const nextJob: Job = {
-          id: jobId,
+          id: displayId,
+          requestId,
+          jobId,
           variant: payload?.crane_registration || "Assigned Crane",
           capacity: "NA",
           customer: "Customer",
@@ -195,7 +206,7 @@ export default function App() {
       setState((prev) => ({
         ...prev,
         jobs: prev.jobs.map((job) =>
-          job.id === payload.jobId
+          job.jobId === payload.jobId
             ? { ...job, status: statusMap[payload.status] || job.status }
             : job,
         ),
@@ -224,17 +235,19 @@ export default function App() {
     if (!state.online || isOffline) return;
     if (!derived.active) return;
 
+    const jobId = derived.active.jobId;
     const isUuid =
+      jobId &&
       /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
-        derived.active.id,
+        jobId,
       );
-    if (!isUuid) return;
+    if (!isUuid || !jobId) return;
 
     const timer = setInterval(() => {
       const lat = 12.9716 + (Math.random() - 0.5) * 0.01;
       const lng = 77.5946 + (Math.random() - 0.5) * 0.01;
       socket.emit("tracking:update", {
-        jobId: derived.active?.id,
+        jobId,
         latitude: lat,
         longitude: lng,
         speedKmph: 25 + Math.random() * 20,

@@ -1,4 +1,4 @@
-import { MessageSquare, Phone, ShieldCheck, Truck } from "lucide-react";
+import { MessageSquare, Phone, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import styled from "styled-components";
@@ -77,15 +77,36 @@ export function TrackingPage() {
       return;
     }
 
-    api
-      .get(`/customer/requests/${id}/tracking`)
+    const trackingIdPromise =
+      id === "latest"
+        ? api
+            .get("/customer/requests")
+            .then((res) => {
+              const rows: { id: string }[] = res.data?.data || [];
+              return rows.length ? rows[0].id : null;
+            })
+            .catch(() => null)
+        : Promise.resolve(id);
+
+    trackingIdPromise
+      .then((trackingId) => {
+        if (!trackingId) {
+          setPayload(null);
+          return null;
+        }
+        return api.get(`/customer/requests/${trackingId}/tracking`);
+      })
       .then((res) => {
+        if (!res) return;
         setPayload(res.data?.data || null);
         const jobId = res.data?.data?.job?.id;
         if (jobId) {
           socket.connect();
           socket.emit("join:job", jobId);
         }
+      })
+      .then((res) => {
+        return res;
       })
       .catch((error) => {
         toast.error(

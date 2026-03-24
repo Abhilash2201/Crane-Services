@@ -190,10 +190,10 @@ export function NewRequestPage() {
               },
             });
           } catch (error) {
-            toast.error(
-              error?.response?.data?.message ||
-                "Request submitted but photo upload failed.",
-            );
+            const message =
+              (error as any)?.response?.data?.message ||
+              "Request submitted but photo upload failed.";
+            toast.error(message);
           } finally {
             setUploading(false);
           }
