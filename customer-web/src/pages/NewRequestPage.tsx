@@ -1,5 +1,5 @@
 import { Camera, CalendarClock, Filter, MapPinned, MoveRight, UploadCloud } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import styled from "styled-components";
@@ -35,13 +35,99 @@ export function NewRequestPage() {
   const [photos, setPhotos] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [mapsReady, setMapsReady] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const pickupInputRef = useRef<HTMLInputElement | null>(null);
+  const dropInputRef = useRef<HTMLInputElement | null>(null);
+  const pickupAutocompleteRef = useRef<any>(null);
+  const dropAutocompleteRef = useRef<any>(null);
   const navigate = useNavigate();
   const filtered = useMemo(() => (selectedType === "All" ? craneOptions : craneOptions.filter((item) => item.type === selectedType)), [selectedType]);
   const selectedCraneData = useMemo(
     () => craneOptions.find((item) => item.name === selectedCrane) || craneOptions[0],
     [selectedCrane]
   );
+
+  useEffect(() => {
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
+    if (!apiKey) return;
+
+    if ((window as any).google?.maps?.places) {
+      setMapsReady(true);
+      return;
+    }
+
+    const scriptId = "google-maps-places";
+    const existing = document.getElementById(scriptId) as HTMLScriptElement | null;
+    if (existing) {
+      const onLoad = () => setMapsReady(true);
+      existing.addEventListener("load", onLoad);
+      return () => existing.removeEventListener("load", onLoad);
+    }
+
+    const script = document.createElement("script");
+    script.id = scriptId;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+    script.async = true;
+    script.defer = true;
+    const onLoad = () => setMapsReady(true);
+    script.addEventListener("load", onLoad);
+    document.head.appendChild(script);
+
+    return () => script.removeEventListener("load", onLoad);
+  }, []);
+
+  useEffect(() => {
+    if (!mapsReady || step !== 2) return;
+    const google = (window as any).google;
+    if (!google?.maps?.places) return;
+
+    const restrictions = { country: ["in"] };
+    const bounds = new google.maps.LatLngBounds(
+      { lat: 12.7343, lng: 77.3792 },
+      { lat: 13.1737, lng: 77.8827 },
+    );
+
+    if (pickupInputRef.current && !pickupAutocompleteRef.current) {
+      const pickupAutocomplete = new google.maps.places.Autocomplete(
+        pickupInputRef.current,
+        {
+          fields: ["formatted_address"],
+          types: ["geocode"],
+          componentRestrictions: restrictions,
+          bounds,
+          strictBounds: true,
+        },
+      );
+      pickupAutocomplete.addListener("place_changed", () => {
+        const place = pickupAutocomplete.getPlace();
+        if (place?.formatted_address) {
+          setPickupAddress(place.formatted_address);
+        }
+      });
+      pickupAutocompleteRef.current = pickupAutocomplete;
+    }
+
+    if (dropInputRef.current && !dropAutocompleteRef.current) {
+      const dropAutocomplete = new google.maps.places.Autocomplete(
+        dropInputRef.current,
+        {
+          fields: ["formatted_address"],
+          types: ["geocode"],
+          componentRestrictions: restrictions,
+          bounds,
+          strictBounds: true,
+        },
+      );
+      dropAutocomplete.addListener("place_changed", () => {
+        const place = dropAutocomplete.getPlace();
+        if (place?.formatted_address) {
+          setDropAddress(place.formatted_address);
+        }
+      });
+      dropAutocompleteRef.current = dropAutocomplete;
+    }
+  }, [mapsReady, step]);
 
   const handleSubmit = () => {
     let isAuthed = false;
@@ -169,12 +255,14 @@ export function NewRequestPage() {
                 Map picker placeholder
               </div>
               <Input
+                ref={pickupInputRef}
                 placeholder="Pickup address"
                 style={{ marginTop: 8 }}
                 value={pickupAddress}
                 onChange={(e) => setPickupAddress(e.target.value)}
               />
               <Input
+                ref={dropInputRef}
                 placeholder="Drop address (optional)"
                 style={{ marginTop: 8 }}
                 value={dropAddress}
