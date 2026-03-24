@@ -1,5 +1,7 @@
 import { Camera, CalendarClock, Filter, MapPinned, MoveRight, UploadCloud } from "lucide-react";
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
 import styled from "styled-components";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
@@ -7,6 +9,7 @@ import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Tabs } from "../components/ui/tabs";
 import { Textarea } from "../components/ui/textarea";
+import { api } from "../lib/api";
 
 const craneOptions = [
   { name: "25T Mobile", type: "Mobile", capacity: 25, radius: "12m", city: "Bengaluru" },
@@ -23,7 +26,79 @@ export function NewRequestPage() {
   const [step, setStep] = useState(1);
   const [selectedType, setSelectedType] = useState("All");
   const [selectedCrane, setSelectedCrane] = useState("50T Rough Terrain");
+  const [pickupAddress, setPickupAddress] = useState("");
+  const [dropAddress, setDropAddress] = useState("");
+  const [scheduledAt, setScheduledAt] = useState("");
+  const [duration, setDuration] = useState("");
+  const [loadDescription, setLoadDescription] = useState("");
+  const [notes, setNotes] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const navigate = useNavigate();
   const filtered = useMemo(() => (selectedType === "All" ? craneOptions : craneOptions.filter((item) => item.type === selectedType)), [selectedType]);
+  const selectedCraneData = useMemo(
+    () => craneOptions.find((item) => item.name === selectedCrane) || craneOptions[0],
+    [selectedCrane]
+  );
+
+  const handleSubmit = () => {
+    let isAuthed = false;
+    let accessToken: string | undefined;
+    try {
+      const raw = localStorage.getItem("auth");
+      const parsed = raw ? JSON.parse(raw) : null;
+      isAuthed = Boolean(parsed?.refreshToken);
+      accessToken = parsed?.accessToken;
+    } catch {
+      isAuthed = false;
+    }
+
+    if (!isAuthed) {
+      toast.error("Please login or sign up to submit your request.");
+      navigate("/auth?mode=login&next=/new-request");
+      return;
+    }
+
+    if (!pickupAddress.trim() || pickupAddress.trim().length < 5) {
+      toast.error("Please enter a valid pickup address.");
+      return;
+    }
+    if (!accessToken) {
+      toast.error("Session expired. Please login again.");
+      navigate("/auth?mode=login&next=/new-request");
+      return;
+    }
+
+    const payload = {
+      pickupAddress: pickupAddress.trim(),
+      dropAddress: dropAddress.trim() || undefined,
+      requiredCapacityTons: selectedCraneData?.capacity,
+      scheduledAt: scheduledAt || undefined,
+      notes: [
+        loadDescription ? `Load: ${loadDescription}` : null,
+        duration ? `Duration: ${duration}` : null,
+        notes ? `Notes: ${notes}` : null,
+      ]
+        .filter(Boolean)
+        .join(" | ") || undefined,
+    };
+
+    setSubmitting(true);
+    api
+      .post("/customer/requests", payload, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      })
+      .then(() => {
+        toast.success("Request submitted. We will confirm shortly.");
+        navigate("/dashboard");
+      })
+      .catch((error) => {
+        toast.error(
+          error?.response?.data?.message ||
+            "Unable to submit request. Please try again.",
+        );
+      })
+      .finally(() => setSubmitting(false));
+  };
 
   return (
     <Wizard>
@@ -59,19 +134,50 @@ export function NewRequestPage() {
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
             <div>
               <label><MapPinned size={14} /> Job Location (Google Maps Picker)</label>
-              <div style={{ marginTop: 6, height: 140, borderRadius: 12, border: "1px solid #E2E8F0", display: "grid", placeItems: "center", background: "linear-gradient(120deg,#dbeafe,#f1f5f9)" }}>Pin: Whitefield, Bengaluru (560066)</div>
+              <div style={{ marginTop: 6, height: 140, borderRadius: 12, border: "1px solid #E2E8F0", display: "grid", placeItems: "center", background: "linear-gradient(120deg,#dbeafe,#f1f5f9)" }}>
+                Map picker placeholder
+              </div>
+              <Input
+                placeholder="Pickup address"
+                style={{ marginTop: 8 }}
+                value={pickupAddress}
+                onChange={(e) => setPickupAddress(e.target.value)}
+              />
+              <Input
+                placeholder="Drop address (optional)"
+                style={{ marginTop: 8 }}
+                value={dropAddress}
+                onChange={(e) => setDropAddress(e.target.value)}
+              />
             </div>
             <div>
               <label><CalendarClock size={14} /> Date & Time</label>
-              <Input type="datetime-local" style={{ marginTop: 6 }} />
+              <Input
+                type="datetime-local"
+                style={{ marginTop: 6 }}
+                value={scheduledAt}
+                onChange={(e) => setScheduledAt(e.target.value)}
+              />
               <label style={{ display: "block", marginTop: 10 }}>Duration</label>
-              <Input placeholder="8 hours" />
+              <Input
+                placeholder="8 hours"
+                value={duration}
+                onChange={(e) => setDuration(e.target.value)}
+              />
             </div>
           </div>
           <label>Load Description</label>
-          <Input placeholder="Lift 22-ton DG unit to rooftop (18m radius)" />
+          <Input
+            placeholder="Lift 22-ton DG unit to rooftop (18m radius)"
+            value={loadDescription}
+            onChange={(e) => setLoadDescription(e.target.value)}
+          />
           <label>Special Instructions</label>
-          <Textarea placeholder="Night shift entry gate is gate 3. Operator must carry PPE kit." />
+          <Textarea
+            placeholder="Night shift entry gate is gate 3. Operator must carry PPE kit."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          />
           <label><Camera size={14} /> Site Photo Upload</label>
           <Button variant="outline"><UploadCloud size={16} /> Upload Photos</Button>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -86,14 +192,17 @@ export function NewRequestPage() {
           <h3 style={{ margin: 0 }}>Review & Submit</h3>
           <Card><CardContent>
             <p><b>Variant:</b> {selectedCrane}</p>
-            <p><b>Location:</b> EPIP Zone, Whitefield, Bengaluru - 560066</p>
-            <p><b>Schedule:</b> 03 Mar 2026, 09:00 AM</p>
-            <p><b>Duration:</b> 8 hours</p>
+            <p><b>Pickup:</b> {pickupAddress || "-"}</p>
+            <p><b>Drop:</b> {dropAddress || "-"}</p>
+            <p><b>Schedule:</b> {scheduledAt || "-"}</p>
+            <p><b>Duration:</b> {duration || "-"}</p>
             <p><b>Expected Budget:</b> ?38,000 - ?52,000</p>
           </CardContent></Card>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Button variant="outline" onClick={() => setStep(2)}>Edit Details</Button>
-            <Button size="lg">Submit Request</Button>
+            <Button size="lg" onClick={handleSubmit} disabled={submitting}>
+              {submitting ? "Submitting..." : "Submit Request"}
+            </Button>
           </div>
         </CardContent></Card>
       )}

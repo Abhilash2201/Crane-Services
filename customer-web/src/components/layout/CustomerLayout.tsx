@@ -1,9 +1,11 @@
 import { Bell, MapPin, Menu, Search } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import styled from "styled-components";
+import { toast } from "react-hot-toast";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
+import { api } from "../../lib/api";
 
 const Shell = styled.div`
   min-height: 100vh;
@@ -77,6 +79,51 @@ const Content = styled.main`
 
 export function CustomerLayout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [authPayload, setAuthPayload] = useState<{
+    refreshToken?: string;
+    user?: { name?: string; email?: string };
+  } | null>(null);
+
+  const isAuthenticated = useMemo(
+    () => Boolean(authPayload?.refreshToken),
+    [authPayload],
+  );
+
+  useEffect(() => {
+    const loadAuth = () => {
+      try {
+        const raw = localStorage.getItem("auth");
+        setAuthPayload(raw ? JSON.parse(raw) : null);
+      } catch {
+        setAuthPayload(null);
+      }
+    };
+
+    loadAuth();
+    window.addEventListener("auth-changed", loadAuth);
+    return () => window.removeEventListener("auth-changed", loadAuth);
+  }, []);
+
+  const handleLogout = async () => {
+    if (!authPayload?.refreshToken) {
+      localStorage.removeItem("auth");
+      setAuthPayload(null);
+      window.dispatchEvent(new Event("auth-changed"));
+      return;
+    }
+    try {
+      await api.post("/auth/logout", {
+        refreshToken: authPayload.refreshToken,
+      });
+    } catch {
+      // Ignore logout errors and clear local session anyway.
+    } finally {
+      localStorage.removeItem("auth");
+      setAuthPayload(null);
+      window.dispatchEvent(new Event("auth-changed"));
+      toast.success("Logged out.");
+    }
+  };
   return (
     <Shell>
       <Header>
@@ -122,12 +169,27 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
           </SearchRow>
           <Nav $open={open}>
             <NavItem to="/">How it Works</NavItem>
-            <NavItem to="/dashboard">For Owners</NavItem>
+            {isAuthenticated ? (
+              <NavItem to="/dashboard">My Requests</NavItem>
+            ) : null}
             <NavItem to="/new-request">New Request</NavItem>
             <NavItem to="/tracking/REQ-DEL-4432">Live Tracking</NavItem>
-            <Link to="/auth">
-              <Button size="sm">Login</Button>
-            </Link>
+            {isAuthenticated ? (
+              <Button variant="outline" size="sm" onClick={handleLogout}>
+                Logout
+              </Button>
+            ) : (
+              <>
+                <Link to="/auth?mode=signup">
+                  <Button variant="outline" size="sm">
+                    Sign Up
+                  </Button>
+                </Link>
+                <Link to="/auth?mode=login">
+                  <Button size="sm">Login</Button>
+                </Link>
+              </>
+            )}
             <Button variant="ghost" size="sm">
               <Bell size={16} />
             </Button>

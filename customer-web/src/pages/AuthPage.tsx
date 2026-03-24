@@ -1,7 +1,9 @@
-import { ArrowLeft, ArrowRight, Smartphone } from "lucide-react";
-import { useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { LogIn, UserPlus } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import styled from "styled-components";
+import axios from "axios";
+import { toast } from "react-hot-toast";
 import { Button } from "../components/ui/button";
 import {
   Card,
@@ -10,133 +12,184 @@ import {
   CardTitle,
 } from "../components/ui/card";
 import { Input } from "../components/ui/input";
+import { api } from "../lib/api";
 
 const Wrap = styled.div`
   max-width: 500px;
   margin: 20px auto;
 `;
-const OtpRow = styled.div`
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 8px;
-`;
 
 export function AuthPage() {
-  const [step, setStep] = useState<"phone" | "otp">("phone");
+  const [searchParams] = useSearchParams();
+  const [mode, setMode] = useState<"login" | "register">("login");
+  const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
-  const [generatedOtp, setGeneratedOtp] = useState("482913");
-  const [error, setError] = useState("");
-  const [info, setInfo] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
-  const isPhoneValid = useMemo(() => /^[6-9]\d{9}$/.test(phone), [phone]);
+  const isEmailValid = useMemo(
+    () => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),
+    [email],
+  );
 
-  const handleSendOtp = () => {
-    if (!isPhoneValid) {
-      setError("Enter a valid 10-digit Indian mobile number.");
-      setInfo("");
-      return;
+  useEffect(() => {
+    const nextMode = searchParams.get("mode");
+    if (nextMode === "signup" || nextMode === "register") {
+      setMode("register");
+    } else if (nextMode === "login") {
+      setMode("login");
     }
-    const nextOtp = String(Math.floor(100000 + Math.random() * 900000));
-    setGeneratedOtp(nextOtp);
-    setError("");
-    setInfo(`OTP sent to +91 ${phone}. Demo OTP: ${nextOtp}`);
-    setStep("otp");
+  }, [searchParams]);
+
+  const nextPath = useMemo(() => {
+    const next = searchParams.get("next");
+    return next && next.startsWith("/") ? next : "/dashboard";
+  }, [searchParams]);
+
+  const getErrorMessage = (error: unknown) => {
+    if (axios.isAxiosError(error)) {
+      return error.response?.data?.message || "Request failed. Please try again.";
+    }
+    return "Something went wrong. Please try again.";
   };
 
-  const handleOtpChange = (value: string, index: number) => {
-    const clean = value.replace(/\D/g, "").slice(0, 1);
-    setOtp((prev) => {
-      const next = [...prev];
-      next[index] = clean;
-      return next;
-    });
-  };
+  const handleSubmit = async () => {
+    if (loading) return;
 
-  const handleVerify = () => {
-    if (otp.join("").length !== 6) {
-      setError("Please enter all 6 OTP digits.");
+    if (!isEmailValid) {
+      toast.error("Please enter a valid email address.");
       return;
     }
-    if (otp.join("") !== generatedOtp) {
-      setError("Invalid OTP. Please try again.");
+    if (!password || password.length < 6) {
+      toast.error("Password must be at least 6 characters.");
       return;
     }
-    setError("");
-    setInfo("Verification successful. Redirecting...");
-    setTimeout(() => navigate("/dashboard"), 700);
-  };
 
-  const resetOtp = () => setOtp(["", "", "", "", "", ""]);
+    if (mode === "register") {
+      if (!name.trim()) {
+        toast.error("Please enter your name.");
+        return;
+      }
+      if (confirmPassword !== password) {
+        toast.error("Passwords do not match.");
+        return;
+      }
+    }
+
+    setLoading(true);
+    try {
+      if (mode === "register") {
+        const response = await api.post("/auth/register", {
+          name: name.trim(),
+          email: email.trim().toLowerCase(),
+          phone: phone.trim() ? phone.trim() : undefined,
+          password,
+          role: "customer",
+        });
+        localStorage.setItem("auth", JSON.stringify(response.data.data));
+        window.dispatchEvent(new Event("auth-changed"));
+        toast.success("Account created successfully.");
+      } else {
+        const response = await api.post("/auth/login", {
+          email: email.trim().toLowerCase(),
+          password,
+        });
+        localStorage.setItem("auth", JSON.stringify(response.data.data));
+        window.dispatchEvent(new Event("auth-changed"));
+        toast.success("Logged in successfully.");
+      }
+      navigate(nextPath);
+    } catch (error) {
+      toast.error(getErrorMessage(error));
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <Wrap>
       <Card>
         <CardHeader>
           <CardTitle style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <Smartphone size={18} /> Login / Register
+            {mode === "register" ? <UserPlus size={18} /> : <LogIn size={18} />}
+            {mode === "register" ? "Create Account" : "Login"}
           </CardTitle>
         </CardHeader>
         <CardContent style={{ display: "grid", gap: 12 }}>
-          {step === "phone" ? (
+          <div style={{ display: "flex", gap: 8 }}>
+            <Button
+              variant={mode === "login" ? "default" : "outline"}
+              onClick={() => setMode("login")}
+              style={{ flex: 1 }}
+            >
+              Login
+            </Button>
+            <Button
+              variant={mode === "register" ? "default" : "outline"}
+              onClick={() => setMode("register")}
+              style={{ flex: 1 }}
+            >
+              Sign Up
+            </Button>
+          </div>
+
+          {mode === "register" ? (
             <>
-              <label>Mobile Number</label>
+              <label>Full Name</label>
               <Input
-                placeholder="98XXXXXX45"
+                placeholder="Your name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <label>Phone (optional)</label>
+              <Input
+                placeholder="98XXXXXXXX"
                 value={phone}
                 onChange={(e) =>
-                  setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
+                  setPhone(e.target.value.replace(/\D/g, "").slice(0, 15))
                 }
               />
-              <Button size="lg" onClick={handleSendOtp}>
-                Send OTP <ArrowRight size={16} />
-              </Button>
-              <small style={{ color: "#64748B" }}>
-                By continuing, you agree to CraneHub Terms & Privacy.
-              </small>
             </>
-          ) : (
+          ) : null}
+
+          <label>Email</label>
+          <Input
+            type="email"
+            placeholder="you@company.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+          <label>Password</label>
+          <Input
+            type="password"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+          {mode === "register" ? (
             <>
-              <label>Enter 6-digit OTP</label>
-              <OtpRow>
-                {Array.from({ length: 6 }).map((_, i) => (
-                  <Input
-                    key={i}
-                    inputMode="numeric"
-                    maxLength={1}
-                    value={otp[i]}
-                    onChange={(e) => handleOtpChange(e.target.value, i)}
-                    style={{ textAlign: "center" }}
-                  />
-                ))}
-              </OtpRow>
-              <Button variant="success" size="lg" onClick={handleVerify}>
-                Verify & Continue
-              </Button>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    resetOtp();
-                    handleSendOtp();
-                  }}
-                >
-                  Resend OTP
-                </Button>
-                <Button
-                  variant="ghost"
-                  onClick={() => {
-                    setStep("phone");
-                    resetOtp();
-                  }}
-                >
-                  <ArrowLeft size={16} /> Change Number
-                </Button>
-              </div>
+              <label>Confirm Password</label>
+              <Input
+                type="password"
+                placeholder="Re-enter password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+              />
             </>
-          )}
-          {error ? <small style={{ color: "#DC2626" }}>{error}</small> : null}
-          {info ? <small style={{ color: "#16A34A" }}>{info}</small> : null}
+          ) : null}
+
+          <Button size="lg" onClick={handleSubmit} disabled={loading}>
+            {loading
+              ? "Please wait..."
+              : mode === "register"
+                ? "Create Account"
+                : "Login"}
+          </Button>
+          <small style={{ color: "#64748B" }}>
+            By continuing, you agree to CraneHub Terms & Privacy.
+          </small>
         </CardContent>
       </Card>
     </Wrap>

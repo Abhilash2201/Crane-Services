@@ -2,6 +2,7 @@ import { BrowserRouter } from "react-router-dom";
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { ThemeProvider } from "styled-components";
+import { Toaster } from "react-hot-toast";
 import App from "./App";
 import { GlobalStyles } from "./styles/GlobalStyles";
 import { theme } from "./styles/theme";
@@ -13,6 +14,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
       <BrowserRouter>
         <App />
       </BrowserRouter>
+      <Toaster position="top-right" />
     </ThemeProvider>
   </React.StrictMode>,
 );
