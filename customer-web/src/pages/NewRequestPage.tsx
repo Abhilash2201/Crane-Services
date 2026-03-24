@@ -1,5 +1,5 @@
 import { Camera, CalendarClock, Filter, MapPinned, MoveRight, UploadCloud } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import styled from "styled-components";
@@ -32,7 +32,10 @@ export function NewRequestPage() {
   const [duration, setDuration] = useState("");
   const [loadDescription, setLoadDescription] = useState("");
   const [notes, setNotes] = useState("");
+  const [photos, setPhotos] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const navigate = useNavigate();
   const filtered = useMemo(() => (selectedType === "All" ? craneOptions : craneOptions.filter((item) => item.type === selectedType)), [selectedType]);
   const selectedCraneData = useMemo(
@@ -87,7 +90,28 @@ export function NewRequestPage() {
       .post("/customer/requests", payload, {
         headers: { Authorization: `Bearer ${accessToken}` },
       })
-      .then(() => {
+      .then(async (res) => {
+        const requestId = res.data?.data?.id;
+        if (requestId && photos.length) {
+          const form = new FormData();
+          photos.forEach((file) => form.append("photos", file));
+          setUploading(true);
+          try {
+            await api.post(`/customer/requests/${requestId}/photos`, form, {
+              headers: {
+                Authorization: `Bearer ${accessToken}`,
+                "Content-Type": "multipart/form-data",
+              },
+            });
+          } catch (error) {
+            toast.error(
+              error?.response?.data?.message ||
+                "Request submitted but photo upload failed.",
+            );
+          } finally {
+            setUploading(false);
+          }
+        }
         toast.success("Request submitted. We will confirm shortly.");
         navigate("/dashboard");
       })
@@ -98,6 +122,13 @@ export function NewRequestPage() {
         );
       })
       .finally(() => setSubmitting(false));
+  };
+
+  const handlePhotoSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const list = event.target.files ? Array.from(event.target.files) : [];
+    if (!list.length) return;
+    const next = list.slice(0, 6);
+    setPhotos(next);
   };
 
   return (
@@ -179,7 +210,25 @@ export function NewRequestPage() {
             onChange={(e) => setNotes(e.target.value)}
           />
           <label><Camera size={14} /> Site Photo Upload</label>
-          <Button variant="outline"><UploadCloud size={16} /> Upload Photos</Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handlePhotoSelect}
+            style={{ display: "none" }}
+          />
+          <Button
+            variant="outline"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <UploadCloud size={16} /> Upload Photos
+          </Button>
+          {photos.length ? (
+            <small style={{ color: "#64748B" }}>
+              {photos.length} photo{photos.length > 1 ? "s" : ""} selected
+            </small>
+          ) : null}
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
             <Button size="lg" onClick={() => setStep(3)}>Review Request</Button>
@@ -200,8 +249,8 @@ export function NewRequestPage() {
           </CardContent></Card>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Button variant="outline" onClick={() => setStep(2)}>Edit Details</Button>
-            <Button size="lg" onClick={handleSubmit} disabled={submitting}>
-              {submitting ? "Submitting..." : "Submit Request"}
+            <Button size="lg" onClick={handleSubmit} disabled={submitting || uploading}>
+              {submitting || uploading ? "Submitting..." : "Submit Request"}
             </Button>
           </div>
         </CardContent></Card>

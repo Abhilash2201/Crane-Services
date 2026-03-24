@@ -45,6 +45,7 @@ export function TrackingPage() {
   const { id } = useParams();
   const [item, setItem] = useState<RequestItem | null>(null);
   const [loading, setLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
 
   useEffect(() => {
     let accessToken: string | undefined;
@@ -87,6 +88,25 @@ export function TrackingPage() {
     statusMeta.label === "Pending" ||
     statusMeta.label === "Accepted" ||
     statusMeta.label === "In Progress";
+
+  const handleCancel = () => {
+    if (!id || cancelling) return;
+    setCancelling(true);
+    api
+      .patch(`/customer/requests/${id}/cancel`)
+      .then((res) => {
+        const next = res.data?.data;
+        if (next) setItem(next);
+        toast.success("Request cancelled.");
+      })
+      .catch((error) => {
+        toast.error(
+          error?.response?.data?.message ||
+            "Unable to cancel request. Please try again.",
+        );
+      })
+      .finally(() => setCancelling(false));
+  };
 
   return (
     <Wrap>
@@ -220,8 +240,13 @@ export function TrackingPage() {
               <MessageSquare size={16} /> Chat Support
             </Button>
             {canCancel ? (
-              <Button variant="ghost" style={{ color: "#DC2626" }}>
-                Cancel Request
+              <Button
+                variant="ghost"
+                style={{ color: "#DC2626" }}
+                onClick={handleCancel}
+                disabled={cancelling}
+              >
+                {cancelling ? "Cancelling..." : "Cancel Request"}
               </Button>
             ) : null}
           </div>
