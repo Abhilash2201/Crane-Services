@@ -340,6 +340,55 @@ const options = {
           }
         }
       },
+      "/api/customer/requests/{id}/tracking": {
+        get: {
+          tags: ["Customer"],
+          security: [{ bearerAuth: [] }],
+          summary: "Get request tracking data",
+          parameters: [
+            {
+              in: "path",
+              name: "id",
+              required: true,
+              schema: { type: "string", format: "uuid" }
+            }
+          ],
+          responses: {
+            200: {
+              description: "Tracking data",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      success: { type: "boolean", example: true },
+                      data: {
+                        type: "object",
+                        properties: {
+                          request: { type: "object" },
+                          owner: { type: ["object", "null"] },
+                          driver: { type: ["object", "null"] },
+                          job: { type: ["object", "null"] },
+                          lastEvent: { type: ["object", "null"] }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            404: { description: "Not found" }
+          }
+        }
+      },
+      "/api/socket": {
+        get: {
+          tags: ["System"],
+          summary: "Socket.IO endpoint",
+          description: "Connect with Socket.IO client at the API host root.",
+          responses: { 200: { description: "Socket endpoint available" } }
+        }
+      },
       "/api/owner/incoming-requests": {
         get: {
           tags: ["Owner"],

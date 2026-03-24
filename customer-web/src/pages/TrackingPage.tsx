@@ -1,12 +1,12 @@
 import { MessageSquare, Phone, ShieldCheck, Truck } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "react-router-dom";
 import styled from "styled-components";
 import { toast } from "react-hot-toast";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
-import { api } from "../lib/api";
+import { api, socket } from "../lib/api";
 
 const Wrap = styled.div`
   display: grid;
@@ -23,7 +23,27 @@ type RequestItem = {
   status: string;
   scheduled_at?: string | null;
   created_at: string;
-  job_status?: string | null;
+  owner_id?: string | null;
+};
+
+type TrackingPayload = {
+  request: RequestItem;
+  owner: { id: string; name: string; phone?: string | null } | null;
+  driver: { id: string; name: string; phone?: string | null } | null;
+  job: {
+    id: string;
+    status: string;
+    craneRegistration?: string | null;
+    startedAt?: string | null;
+    completedAt?: string | null;
+  } | null;
+  lastEvent: {
+    latitude: number;
+    longitude: number;
+    speed_kmph?: number | null;
+    heading?: number | null;
+    captured_at: string;
+  } | null;
 };
 
 const statusSteps = ["Pending", "Accepted", "In Progress", "Completed"];
@@ -43,36 +63,29 @@ const mapStatus = (status: string) => {
 
 export function TrackingPage() {
   const { id } = useParams();
-  const [item, setItem] = useState<RequestItem | null>(null);
+  const [payload, setPayload] = useState<TrackingPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
+  const [mapsReady, setMapsReady] = useState(false);
+  const mapRef = useRef<HTMLDivElement | null>(null);
+  const mapInstanceRef = useRef<any>(null);
+  const markerRef = useRef<any>(null);
 
   useEffect(() => {
-    let accessToken: string | undefined;
-    try {
-      const raw = localStorage.getItem("auth");
-      const parsed = raw ? JSON.parse(raw) : null;
-      accessToken = parsed?.accessToken;
-    } catch {
-      accessToken = undefined;
-    }
-
-    if (!accessToken) {
+    if (!id) {
       setLoading(false);
       return;
     }
 
     api
-      .get("/customer/requests", {
-        headers: { Authorization: `Bearer ${accessToken}` },
-      })
+      .get(`/customer/requests/${id}/tracking`)
       .then((res) => {
-        const rows = res.data?.data || [];
-        const match = rows.find((row: RequestItem) => String(row.id) === String(id));
-        if (!match) {
-          toast.error("Request not found.");
+        setPayload(res.data?.data || null);
+        const jobId = res.data?.data?.job?.id;
+        if (jobId) {
+          socket.connect();
+          socket.emit("join:job", jobId);
         }
-        setItem(match || null);
       })
       .catch((error) => {
         toast.error(
@@ -83,7 +96,102 @@ export function TrackingPage() {
       .finally(() => setLoading(false));
   }, [id]);
 
-  const statusMeta = useMemo(() => mapStatus(item?.status || "pending"), [item]);
+  useEffect(() => {
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
+    if (!apiKey) return;
+    if ((window as any).google?.maps) {
+      setMapsReady(true);
+      return;
+    }
+
+    const scriptId = "google-maps-core";
+    const existing = document.getElementById(scriptId) as HTMLScriptElement | null;
+    if (existing) {
+      const onLoad = () => setMapsReady(true);
+      existing.addEventListener("load", onLoad);
+      return () => existing.removeEventListener("load", onLoad);
+    }
+
+    const script = document.createElement("script");
+    script.id = scriptId;
+    script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}`;
+    script.async = true;
+    script.defer = true;
+    const onLoad = () => setMapsReady(true);
+    script.addEventListener("load", onLoad);
+    document.head.appendChild(script);
+    return () => script.removeEventListener("load", onLoad);
+  }, []);
+
+  useEffect(() => {
+    if (!mapsReady || !mapRef.current || !payload?.lastEvent) return;
+    const google = (window as any).google;
+    if (!google?.maps) return;
+
+    const position = {
+      lat: payload.lastEvent.latitude,
+      lng: payload.lastEvent.longitude,
+    };
+
+    if (!mapInstanceRef.current) {
+      mapInstanceRef.current = new google.maps.Map(mapRef.current, {
+        center: position,
+        zoom: 14,
+        disableDefaultUI: true,
+        zoomControl: true,
+      });
+    } else {
+      mapInstanceRef.current.setCenter(position);
+    }
+
+    if (!markerRef.current) {
+      markerRef.current = new google.maps.Marker({
+        position,
+        map: mapInstanceRef.current,
+      });
+    } else {
+      markerRef.current.setPosition(position);
+    }
+  }, [mapsReady, payload?.lastEvent]);
+
+  useEffect(() => {
+    const onTrackingUpdated = (event: TrackingPayload["lastEvent"]) => {
+      if (!event) return;
+      setPayload((prev) =>
+        prev
+          ? {
+              ...prev,
+              lastEvent: event
+            }
+          : prev,
+      );
+    };
+
+    const onJobStatusChanged = (event: { jobId: string; requestId: string; status: string }) => {
+      setPayload((prev) =>
+        prev && prev.job?.id === event.jobId
+          ? {
+              ...prev,
+              job: { ...prev.job, status: event.status },
+              request: { ...prev.request, status: event.status === "completed" ? "completed" : prev.request.status }
+            }
+          : prev,
+      );
+    };
+
+    socket.on("tracking:updated", onTrackingUpdated);
+    socket.on("job:status_changed", onJobStatusChanged);
+    return () => {
+      socket.off("tracking:updated", onTrackingUpdated);
+      socket.off("job:status_changed", onJobStatusChanged);
+      if (payload?.job?.id) socket.emit("leave:job", payload.job.id);
+    };
+  }, [payload?.job?.id]);
+
+  const statusMeta = useMemo(
+    () => mapStatus(payload?.request?.status || "pending"),
+    [payload],
+  );
   const canCancel =
     statusMeta.label === "Pending" ||
     statusMeta.label === "Accepted" ||
@@ -96,7 +204,12 @@ export function TrackingPage() {
       .patch(`/customer/requests/${id}/cancel`)
       .then((res) => {
         const next = res.data?.data;
-        if (next) setItem(next);
+        if (next && payload?.request) {
+          setPayload({
+            ...payload,
+            request: { ...payload.request, status: next.status },
+          });
+        }
         toast.success("Request cancelled.");
       })
       .catch((error) => {
@@ -139,19 +252,19 @@ export function TrackingPage() {
 
           {loading ? (
             <small style={{ color: "#64748B" }}>Loading...</small>
-          ) : item ? (
+          ) : payload?.request ? (
             <>
               <div style={{ display: "grid", gap: 6 }}>
                 <div>
-                  <b>Pickup:</b> {item.pickup_address}
+                  <b>Pickup:</b> {payload.request.pickup_address}
                 </div>
                 <div>
-                  <b>Drop:</b> {item.drop_address || "Pickup only"}
+                  <b>Drop:</b> {payload.request.drop_address || "Pickup only"}
                 </div>
                 <div>
                   <b>Scheduled:</b>{" "}
-                  {item.scheduled_at
-                    ? new Date(item.scheduled_at).toLocaleString()
+                  {payload.request.scheduled_at
+                    ? new Date(payload.request.scheduled_at).toLocaleString()
                     : "Not scheduled"}
                 </div>
               </div>
@@ -186,7 +299,7 @@ export function TrackingPage() {
                       <p style={{ margin: 0, fontWeight: 700 }}>{step}</p>
                       <small style={{ color: "#64748B" }}>
                         {index === 0
-                          ? new Date(item.created_at).toLocaleString()
+                          ? new Date(payload.request.created_at).toLocaleString()
                           : index === statusMeta.index
                             ? "Current status"
                             : ""}
@@ -203,11 +316,24 @@ export function TrackingPage() {
                     borderRadius: 14,
                     border: "1px solid #E2E8F0",
                     background: "linear-gradient(130deg,#dbeafe,#e2e8f0)",
-                    display: "grid",
-                    placeItems: "center",
+                    overflow: "hidden",
                   }}
                 >
-                  Live tracking will appear here once dispatch starts.
+                  {payload.lastEvent && mapsReady ? (
+                    <div ref={mapRef} style={{ height: "100%", width: "100%" }} />
+                  ) : (
+                    <div
+                      style={{
+                        height: "100%",
+                        display: "grid",
+                        placeItems: "center",
+                      }}
+                    >
+                      {payload.lastEvent
+                        ? `Lat ${payload.lastEvent.latitude.toFixed(5)}, Lng ${payload.lastEvent.longitude.toFixed(5)}`
+                        : "Live tracking will appear here once dispatch starts."}
+                    </div>
+                  )}
                 </div>
               </div>
             </>
@@ -223,10 +349,16 @@ export function TrackingPage() {
         <CardContent style={{ display: "grid", gap: 12 }}>
           <h3 style={{ margin: 0 }}>Assigned Owner & Driver</h3>
           <p style={{ margin: 0 }}>
-            <b>Owner:</b> Assigned after confirmation
+            <b>Owner:</b>{" "}
+            {payload?.owner
+              ? `${payload.owner.name}${payload.owner.phone ? ` (${payload.owner.phone})` : ""}`
+              : "Assigned after confirmation"}
           </p>
           <p style={{ margin: 0 }}>
-            <b>Driver:</b> Assigned after confirmation
+            <b>Driver:</b>{" "}
+            {payload?.driver
+              ? `${payload.driver.name}${payload.driver.phone ? ` (${payload.driver.phone})` : ""}`
+              : "Assigned after confirmation"}
           </p>
           <p style={{ margin: 0 }}>
             <b>Safety:</b> <ShieldCheck size={14} /> Verified documents +

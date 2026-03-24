@@ -25,6 +25,10 @@ const photoParamsSchema = z.object({
   id: z.coerce.string().uuid()
 });
 
+const requestIdSchema = z.object({
+  id: z.coerce.string().uuid()
+});
+
 const uploadDir = path.join(process.cwd(), "uploads", "requests");
 fs.mkdirSync(uploadDir, { recursive: true });
 
@@ -111,6 +115,80 @@ router.get(
     `;
 
     res.json({ success: true, data: rows });
+  })
+);
+
+router.get(
+  "/requests/:id/tracking",
+  asyncHandler(async (req, res) => {
+    const { id } = requestIdSchema.parse(req.params);
+    const rows = await sql`
+      SELECT
+        r.*,
+        j.id AS job_id,
+        j.status AS job_status,
+        j.driver_id,
+        j.crane_registration,
+        j.started_at,
+        j.completed_at,
+        owner.name AS owner_name,
+        owner.phone AS owner_phone,
+        driver.name AS driver_name,
+        driver.phone AS driver_phone
+      FROM requests r
+      LEFT JOIN jobs j ON j.request_id = r.id
+      LEFT JOIN users owner ON owner.id = r.owner_id
+      LEFT JOIN users driver ON driver.id = j.driver_id
+      WHERE r.id = ${id} AND r.customer_id = ${req.user.userId}
+      LIMIT 1
+    `;
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: "Request not found" });
+    }
+
+    const request = rows[0];
+    let lastEvent = null;
+    if (request.job_id) {
+      const events = await sql`
+        SELECT *
+        FROM tracking_events
+        WHERE job_id = ${request.job_id}
+        ORDER BY captured_at DESC
+        LIMIT 1
+      `;
+      lastEvent = events[0] || null;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        request,
+        driver: request.driver_id
+          ? {
+              id: request.driver_id,
+              name: request.driver_name,
+              phone: request.driver_phone
+            }
+          : null,
+        owner: request.owner_id
+          ? {
+              id: request.owner_id,
+              name: request.owner_name,
+              phone: request.owner_phone
+            }
+          : null,
+        job: request.job_id
+          ? {
+              id: request.job_id,
+              status: request.job_status,
+              craneRegistration: request.crane_registration,
+              startedAt: request.started_at,
+              completedAt: request.completed_at
+            }
+          : null,
+        lastEvent
+      }
+    });
   })
 );
 

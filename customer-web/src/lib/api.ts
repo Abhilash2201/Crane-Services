@@ -1,4 +1,5 @@
 import axios, { type AxiosRequestConfig } from "axios";
+import { io, type Socket } from "socket.io-client";
 
 const baseURL = import.meta.env.VITE_API_URL || "http://localhost:8080";
 if (import.meta.env.DEV) {
@@ -105,3 +106,23 @@ api.interceptors.response.use(
     return Promise.reject(error);
   },
 );
+
+const socketBaseUrl = baseURL.replace(/\/api\/?$/, "");
+
+export const socket: Socket = io(socketBaseUrl, {
+  autoConnect: false,
+  transports: ["websocket"],
+  auth: {
+    token: readAuth()?.accessToken
+  }
+});
+
+window.addEventListener("auth-changed", () => {
+  const auth = readAuth();
+  socket.auth = { token: auth?.accessToken };
+  if (auth?.accessToken) {
+    socket.connect();
+  } else {
+    socket.disconnect();
+  }
+});
