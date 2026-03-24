@@ -1,4 +1,5 @@
 const express = require("express");
+const path = require("path");
 const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
@@ -24,6 +25,7 @@ app.use("/webhooks/stripe", express.raw({ type: "application/json" }));
 app.use("/webhooks", webhooksRoutes);
 app.use(express.json({ limit: "1mb" }));
 app.use(morgan("dev"));
+app.use("/uploads", express.static(path.join(process.cwd(), "uploads")));
 
 app.get("/", (_req, res) => {
   res.json({

@@ -29,6 +29,18 @@ const options = {
             success: { type: "boolean", example: false },
             message: { type: "string", example: "Validation failed" }
           }
+        },
+        RequestPhoto: {
+          type: "object",
+          properties: {
+            id: { type: "string", format: "uuid" },
+            request_id: { type: "string", format: "uuid" },
+            url: { type: "string", example: "/uploads/requests/1700000000-123456789.jpg" },
+            filename: { type: "string", example: "1700000000-123456789.jpg" },
+            mime_type: { type: "string", example: "image/jpeg" },
+            size_bytes: { type: "integer", example: 345678 },
+            created_at: { type: "string", format: "date-time" }
+          }
         }
       }
     },
@@ -254,6 +266,78 @@ const options = {
             }
           },
           responses: { 201: { description: "Created" } }
+        }
+      },
+      "/api/customer/requests/{id}/cancel": {
+        patch: {
+          tags: ["Customer"],
+          security: [{ bearerAuth: [] }],
+          summary: "Cancel a request",
+          parameters: [
+            {
+              in: "path",
+              name: "id",
+              required: true,
+              schema: { type: "string", format: "uuid" }
+            }
+          ],
+          responses: {
+            200: { description: "Cancelled" },
+            400: { description: "Cannot cancel" },
+            404: { description: "Not found" }
+          }
+        }
+      },
+      "/api/customer/requests/{id}/photos": {
+        post: {
+          tags: ["Customer"],
+          security: [{ bearerAuth: [] }],
+          summary: "Upload request photos",
+          parameters: [
+            {
+              in: "path",
+              name: "id",
+              required: true,
+              schema: { type: "string", format: "uuid" }
+            }
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              "multipart/form-data": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    photos: {
+                      type: "array",
+                      items: { type: "string", format: "binary" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            201: {
+              description: "Uploaded",
+              content: {
+                "application/json": {
+                  schema: {
+                    type: "object",
+                    properties: {
+                      success: { type: "boolean", example: true },
+                      data: {
+                        type: "array",
+                        items: { $ref: "#/components/schemas/RequestPhoto" }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            400: { description: "No files or invalid file type" },
+            404: { description: "Not found" }
+          }
         }
       },
       "/api/owner/incoming-requests": {

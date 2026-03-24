@@ -1,4 +1,7 @@
 const express = require("express");
+const fs = require("fs");
+const path = require("path");
+const multer = require("multer");
 const { z } = require("zod");
 const { sql } = require("../db/neon");
 const { asyncHandler } = require("../utils/asyncHandler");
@@ -12,6 +15,39 @@ const requestSchema = z.object({
   requiredCapacityTons: z.coerce.number().positive().optional(),
   scheduledAt: z.string().datetime().optional(),
   notes: z.string().max(500).optional()
+});
+
+const cancelSchema = z.object({
+  id: z.coerce.string().uuid()
+});
+
+const photoParamsSchema = z.object({
+  id: z.coerce.string().uuid()
+});
+
+const uploadDir = path.join(process.cwd(), "uploads", "requests");
+fs.mkdirSync(uploadDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || "");
+    const safeExt = ext.length <= 10 ? ext : "";
+    const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`;
+    cb(null, name);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024, files: 6 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype?.startsWith("image/")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only image uploads are allowed"));
+    }
+  }
 });
 
 router.use(requireAuth, authorize("customer"));
@@ -75,6 +111,72 @@ router.get(
     `;
 
     res.json({ success: true, data: rows });
+  })
+);
+
+router.patch(
+  "/requests/:id/cancel",
+  asyncHandler(async (req, res) => {
+    const { id } = cancelSchema.parse(req.params);
+    const rows = await sql`
+      SELECT id, status
+      FROM requests
+      WHERE id = ${id} AND customer_id = ${req.user.userId}
+      LIMIT 1
+    `;
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: "Request not found" });
+    }
+
+    const current = rows[0].status;
+    if (current === "completed" || current === "cancelled") {
+      return res.status(400).json({ success: false, message: "Request cannot be cancelled" });
+    }
+
+    const updated = await sql`
+      UPDATE requests
+      SET status = 'cancelled', updated_at = now()
+      WHERE id = ${id} AND customer_id = ${req.user.userId}
+      RETURNING *
+    `;
+
+    res.json({ success: true, data: updated[0] });
+  })
+);
+
+router.post(
+  "/requests/:id/photos",
+  upload.array("photos", 6),
+  asyncHandler(async (req, res) => {
+    const { id } = photoParamsSchema.parse(req.params);
+    const files = Array.isArray(req.files) ? req.files : [];
+
+    if (!files.length) {
+      return res.status(400).json({ success: false, message: "No files uploaded" });
+    }
+
+    const rows = await sql`
+      SELECT id
+      FROM requests
+      WHERE id = ${id} AND customer_id = ${req.user.userId}
+      LIMIT 1
+    `;
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: "Request not found" });
+    }
+
+    const inserted = [];
+    for (const file of files) {
+      const url = `/uploads/requests/${file.filename}`;
+      const result = await sql`
+        INSERT INTO request_photos (request_id, url, filename, mime_type, size_bytes)
+        VALUES (${id}, ${url}, ${file.filename}, ${file.mimetype}, ${file.size})
+        RETURNING *
+      `;
+      inserted.push(result[0]);
+    }
+
+    res.status(201).json({ success: true, data: inserted });
   })
 );
 

@@ -55,6 +55,18 @@ async function initDb() {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS request_photos (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      request_id UUID NOT NULL REFERENCES requests(id) ON DELETE CASCADE,
+      url TEXT NOT NULL,
+      filename TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size_bytes INT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS tracking_events (
       id BIGSERIAL PRIMARY KEY,
       job_id UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,
