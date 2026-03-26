@@ -6,18 +6,13 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import { createRealtimeSocket } from "../lib/realtime";
+import { api } from "../lib/api";
 
 const Wrap = styled.div`display: grid; gap: 14px; @media (min-width: 950px) { grid-template-columns: 1.2fr 0.8fr; }`;
-const timelines: Record<string, string[][]> = {
-  "REQ-BLR-9382": [["Lead", "28 Feb 2026, 09:05 AM"], ["Quoted", "28 Feb 2026, 09:14 AM"], ["Accepted", "28 Feb 2026, 09:26 AM"], ["Confirmed", "28 Feb 2026, 09:48 AM"]],
-  "REQ-MUM-5521": [["Lead", "28 Feb 2026, 08:42 AM"], ["Quoted", "28 Feb 2026, 08:58 AM"], ["Accepted", "28 Feb 2026, 09:20 AM"], ["Confirmed", "28 Feb 2026, 10:05 AM"], ["In Progress", "28 Feb 2026, 02:10 PM"]],
-  "REQ-DEL-4432": [["Lead", "28 Feb 2026, 11:10 AM"], ["Quoted", "28 Feb 2026, 11:24 AM"], ["Accepted", "28 Feb 2026, 11:56 AM"], ["Confirmed", "28 Feb 2026, 12:40 PM"]]
-};
-
 export function TrackingPage() {
   const { id } = useParams();
-  const timeline = timelines[id ?? ""] ?? timelines["REQ-MUM-5521"];
-  const currentStatus = timeline[timeline.length - 1][0];
+  const [payload, setPayload] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
   const [lastTracking, setLastTracking] = useState<null | {
     latitude: number;
     longitude: number;
@@ -26,42 +21,68 @@ export function TrackingPage() {
   const [liveStatus, setLiveStatus] = useState<string | null>(null);
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token") || undefined;
-    const socket = createRealtimeSocket(token);
-    if (id) socket.emit("join:job", id);
+    const socket = createRealtimeSocket();
+    const jobId = payload?.job?.id;
+    if (jobId) socket.emit("join:job", jobId);
 
     socket.on("tracking:updated", (event) => {
       if (!event?.job_id) return;
-      if (id && event.job_id !== id) return;
+      if (jobId && event.job_id !== jobId) return;
       setLastTracking(event);
     });
 
     socket.on("job:status_changed", (event) => {
       if (!event?.requestId && !event?.jobId) return;
-      if (id && event.requestId !== id && event.jobId !== id) return;
+      if (jobId && event.jobId !== jobId) return;
       setLiveStatus(event.status);
     });
 
     return () => {
-      if (id) socket.emit("leave:job", id);
+      if (jobId) socket.emit("leave:job", jobId);
       socket.disconnect();
     };
+  }, [payload?.job?.id]);
+
+  useEffect(() => {
+    if (!id) return;
+    api
+      .get(`/owner/requests/${id}/tracking`)
+      .then((res) => {
+        setPayload(res.data?.data || null);
+        setLastTracking(res.data?.data?.lastEvent || null);
+      })
+      .catch(() => {})
+      .finally(() => setLoading(false));
   }, [id]);
 
-  const resolvedStatus = useMemo(() => liveStatus || currentStatus, [liveStatus, currentStatus]);
-  const canCancel = resolvedStatus === "Confirmed";
-  const canComplete = resolvedStatus === "In Progress";
+  const resolvedStatus = useMemo(
+    () => liveStatus || payload?.job?.status || payload?.request?.status || "pending",
+    [liveStatus, payload],
+  );
+  const canCancel = resolvedStatus === "accepted" || resolvedStatus === "assigned";
+  const canComplete = resolvedStatus === "working";
 
   return (
     <Wrap>
       <Card><CardContent style={{ display: "grid", gap: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}><h1 style={{ margin: 0 }}>Request Detail: {id}</h1><Badge variant={resolvedStatus === "In Progress" ? "warning" : "default"}>{resolvedStatus}</Badge></div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}><h1 style={{ margin: 0 }}>Request Detail: {id}</h1><Badge variant={resolvedStatus === "working" ? "warning" : "default"}>{resolvedStatus}</Badge></div>
+        {loading ? <small style={{ color: "#64748B" }}>Loading...</small> : null}
         <div style={{ display: "grid", gap: 10 }}>
           <h3 style={{ marginBottom: 0 }}>Status Timeline</h3>
-          {timeline.map(([title, stamp], index) => (
+          {[
+            ["Pending", payload?.request?.created_at],
+            ["Accepted", payload?.request?.updated_at],
+            ["In Progress", payload?.job?.startedAt || payload?.job?.started_at],
+            ["Completed", payload?.job?.completedAt || payload?.job?.completed_at]
+          ].map(([title, stamp], index) => (
             <div key={title} style={{ display: "grid", gridTemplateColumns: "20px 1fr", gap: 10 }}>
-              <div style={{ width: 14, height: 14, marginTop: 4, borderRadius: "50%", background: index === timeline.length - 1 ? "#22C55E" : "#FF6200" }} />
-              <div style={{ borderLeft: "2px solid #E2E8F0", paddingLeft: 10, paddingBottom: 10 }}><p style={{ margin: 0, fontWeight: 700 }}>{title}</p><small style={{ color: "#64748B" }}>{stamp}</small></div>
+              <div style={{ width: 14, height: 14, marginTop: 4, borderRadius: "50%", background: stamp ? "#22C55E" : "#FF6200" }} />
+              <div style={{ borderLeft: "2px solid #E2E8F0", paddingLeft: 10, paddingBottom: 10 }}>
+                <p style={{ margin: 0, fontWeight: 700 }}>{title}</p>
+                <small style={{ color: "#64748B" }}>
+                  {stamp ? new Date(stamp).toLocaleString() : "—"}
+                </small>
+              </div>
             </div>
           ))}
         </div>
@@ -83,8 +104,8 @@ export function TrackingPage() {
 
       <Card><CardContent style={{ display: "grid", gap: 12 }}>
         <h3 style={{ margin: 0 }}>Assigned Owner & Driver</h3>
-        <p style={{ margin: 0 }}><b>Owner:</b> Sandeep Yadav (Yadav Crane Services)</p>
-        <p style={{ margin: 0 }}><b>Driver:</b> Irfan Khan | <Truck size={14} /> DL 1LX 8821</p>
+        <p style={{ margin: 0 }}><b>Owner:</b> {payload?.owner?.name || "—"}</p>
+        <p style={{ margin: 0 }}><b>Driver:</b> {payload?.driver?.name || "—"} {payload?.job?.craneRegistration ? <>| <Truck size={14} /> {payload.job.craneRegistration}</> : null}</p>
         <p style={{ margin: 0 }}><b>Safety:</b> <ShieldCheck size={14} /> Verified documents + insurance active</p>
         <div style={{ display: "grid", gap: 10 }}>
           <Button><Phone size={16} /> Call Driver</Button>

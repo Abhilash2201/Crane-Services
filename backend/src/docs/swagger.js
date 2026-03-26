@@ -143,6 +143,51 @@ const options = {
           summary: "Get current user",
           security: [{ bearerAuth: [] }],
           responses: { 200: { description: "Profile" }, 401: { description: "Unauthorized" } }
+        },
+        put: {
+          tags: ["Auth"],
+          summary: "Update current user",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    email: { type: "string", format: "email" },
+                    phone: { type: "string" }
+                  }
+                }
+              }
+            }
+          },
+          responses: { 200: { description: "Updated" }, 401: { description: "Unauthorized" } }
+        }
+      },
+      "/api/auth/location": {
+        put: {
+          tags: ["Auth"],
+          summary: "Update user location",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["address", "latitude", "longitude"],
+                  properties: {
+                    address: { type: "string" },
+                    latitude: { type: "number" },
+                    longitude: { type: "number" }
+                  }
+                }
+              }
+            }
+          },
+          responses: { 200: { description: "Updated" }, 401: { description: "Unauthorized" } }
         }
       },
       "/api/auth/email/request-otp": {
@@ -397,6 +442,109 @@ const options = {
           responses: { 200: { description: "Incoming requests" } }
         }
       },
+      "/api/owner/accepted-requests": {
+        get: {
+          tags: ["Owner"],
+          security: [{ bearerAuth: [] }],
+          summary: "Accepted requests for dispatch",
+          responses: { 200: { description: "Accepted requests" } }
+        }
+      },
+      "/api/owner/drivers": {
+        get: {
+          tags: ["Owner"],
+          security: [{ bearerAuth: [] }],
+          summary: "List linked drivers",
+          responses: { 200: { description: "Drivers" } }
+        },
+        post: {
+          tags: ["Owner"],
+          security: [{ bearerAuth: [] }],
+          summary: "Link driver to owner",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["driverId"],
+                  properties: {
+                    driverId: { type: "string", format: "uuid" }
+                  }
+                }
+              }
+            }
+          },
+          responses: { 201: { description: "Linked" } }
+        }
+      },
+      "/api/owner/drivers/{driverId}": {
+        delete: {
+          tags: ["Owner"],
+          security: [{ bearerAuth: [] }],
+          summary: "Unlink driver",
+          parameters: [{ in: "path", name: "driverId", required: true, schema: { type: "string", format: "uuid" } }],
+          responses: { 200: { description: "Unlinked" } }
+        }
+      },
+      "/api/owner/fleet": {
+        get: {
+          tags: ["Owner"],
+          security: [{ bearerAuth: [] }],
+          summary: "List fleet",
+          responses: { 200: { description: "Fleet list" } }
+        },
+        post: {
+          tags: ["Owner"],
+          security: [{ bearerAuth: [] }],
+          summary: "Create fleet item",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["name"],
+                  properties: {
+                    name: { type: "string" },
+                    type: { type: "string" },
+                    capacityTons: { type: "number" },
+                    registration: { type: "string" },
+                    status: { type: "string", enum: ["active", "inactive", "maintenance"] }
+                  }
+                }
+              }
+            }
+          },
+          responses: { 201: { description: "Created" } }
+        }
+      },
+      "/api/owner/fleet/{fleetId}": {
+        patch: {
+          tags: ["Owner"],
+          security: [{ bearerAuth: [] }],
+          summary: "Update fleet item",
+          parameters: [{ in: "path", name: "fleetId", required: true, schema: { type: "string", format: "uuid" } }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    type: { type: "string" },
+                    capacityTons: { type: "number" },
+                    registration: { type: "string" },
+                    status: { type: "string", enum: ["active", "inactive", "maintenance"] }
+                  }
+                }
+              }
+            }
+          },
+          responses: { 200: { description: "Updated" } }
+        }
+      },
       "/api/owner/accept-request": {
         post: {
           tags: ["Owner"],
@@ -450,6 +598,15 @@ const options = {
           security: [{ bearerAuth: [] }],
           summary: "Owner jobs",
           responses: { 200: { description: "Job list" } }
+        }
+      },
+      "/api/owner/requests/{id}/tracking": {
+        get: {
+          tags: ["Owner"],
+          security: [{ bearerAuth: [] }],
+          summary: "Tracking data for a request",
+          parameters: [{ in: "path", name: "id", required: true, schema: { type: "string", format: "uuid" } }],
+          responses: { 200: { description: "Tracking data" }, 404: { description: "Not found" } }
         }
       },
       "/api/driver/jobs": {

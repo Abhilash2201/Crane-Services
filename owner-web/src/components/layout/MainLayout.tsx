@@ -9,10 +9,11 @@ import {
   Truck,
   Users
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import styled from "styled-components";
 import { Button } from "../ui/button";
+import { api, authStore } from "../../lib/api";
 
 const Shell = styled.div`
   min-height: 100vh;
@@ -137,6 +138,44 @@ const links = [
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [authPayload, setAuthPayload] = useState<{
+    refreshToken?: string;
+    user?: { name?: string; email?: string };
+  } | null>(null);
+
+  useEffect(() => {
+    const loadAuth = () => {
+      try {
+        const raw = localStorage.getItem("auth");
+        setAuthPayload(raw ? JSON.parse(raw) : null);
+      } catch {
+        setAuthPayload(null);
+      }
+    };
+    loadAuth();
+    window.addEventListener("auth-changed", loadAuth);
+    return () => window.removeEventListener("auth-changed", loadAuth);
+  }, []);
+
+  const displayName = useMemo(
+    () => authPayload?.user?.name || authPayload?.user?.email || "Owner",
+    [authPayload],
+  );
+
+  const handleLogout = async () => {
+    const auth = authStore.read();
+    if (!auth?.refreshToken) {
+      authStore.write(null);
+      return;
+    }
+    try {
+      await api.post("/auth/logout", { refreshToken: auth.refreshToken });
+    } catch {
+      // Ignore logout errors.
+    } finally {
+      authStore.write(null);
+    }
+  };
 
   return (
     <Shell>
@@ -172,8 +211,10 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       <Main>
         <Header>
           <TopLeft>
-            <strong style={{ color: "#0A2540" }}>Rajesh Crane Services Pvt Ltd</strong>
-            <small style={{ color: "#64748B" }}>Owner Console | Bengaluru Region</small>
+            <strong style={{ color: "#0A2540" }}>
+              {displayName}
+            </strong>
+            <small style={{ color: "#64748B" }}>Owner Console</small>
           </TopLeft>
           <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
             <Button variant="ghost" size="sm">
@@ -181,13 +222,13 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
             </Button>
             <ProfileWrap>
               <Button variant="outline" size="sm" onClick={() => setProfileOpen((s) => !s)}>
-                <CircleUserRound size={16} /> Rajesh N
+                <CircleUserRound size={16} /> {displayName}
               </Button>
               {profileOpen ? (
                 <Drop>
                   <DropItem>Company Profile</DropItem>
                   <DropItem>Billing Settings</DropItem>
-                  <DropItem>Logout</DropItem>
+                  <DropItem onClick={handleLogout}>Logout</DropItem>
                 </Drop>
               ) : null}
             </ProfileWrap>

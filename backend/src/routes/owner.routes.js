@@ -18,6 +18,20 @@ const assignDriverSchema = z.object({
   craneRegistration: z.string().min(3)
 });
 
+const addDriverSchema = z.object({
+  driverId: z.string().uuid()
+});
+
+const fleetCreateSchema = z.object({
+  name: z.string().min(2),
+  type: z.string().optional(),
+  capacityTons: z.coerce.number().positive().optional(),
+  registration: z.string().min(3).optional(),
+  status: z.enum(["active", "inactive", "maintenance"]).optional()
+});
+
+const fleetUpdateSchema = fleetCreateSchema.partial();
+
 router.use(requireAuth, authorize("owner"));
 
 router.get(
@@ -32,6 +46,64 @@ router.get(
       LIMIT 50
     `;
     res.json({ success: true, data: rows });
+  })
+);
+
+router.get(
+  "/accepted-requests",
+  asyncHandler(async (req, res) => {
+    const rows = await sql`
+      SELECT id, customer_id, pickup_address, drop_address, required_capacity_tons,
+             scheduled_at, status, notes, created_at
+      FROM requests
+      WHERE status = 'accepted' AND owner_id = ${req.user.userId}
+      ORDER BY created_at DESC
+      LIMIT 50
+    `;
+    res.json({ success: true, data: rows });
+  })
+);
+
+router.get(
+  "/drivers",
+  asyncHandler(async (req, res) => {
+    const rows = await sql`
+      SELECT u.id, u.name, u.email, u.phone, u.is_active, d.created_at
+      FROM owner_drivers d
+      JOIN users u ON u.id = d.driver_id
+      WHERE d.owner_id = ${req.user.userId}
+      ORDER BY d.created_at DESC
+    `;
+    res.json({ success: true, data: rows });
+  })
+);
+
+router.post(
+  "/drivers",
+  asyncHandler(async (req, res) => {
+    const payload = addDriverSchema.parse(req.body);
+    const drivers = await sql`
+      SELECT id FROM users WHERE id = ${payload.driverId} AND role = 'driver' LIMIT 1
+    `;
+    if (!drivers.length) throw new HttpError(404, "Driver not found");
+    await sql`
+      INSERT INTO owner_drivers (owner_id, driver_id)
+      VALUES (${req.user.userId}, ${payload.driverId})
+      ON CONFLICT (driver_id) DO NOTHING
+    `;
+    res.status(201).json({ success: true });
+  })
+);
+
+router.delete(
+  "/drivers/:driverId",
+  asyncHandler(async (req, res) => {
+    const { driverId } = req.params;
+    await sql`
+      DELETE FROM owner_drivers
+      WHERE owner_id = ${req.user.userId} AND driver_id = ${driverId}
+    `;
+    res.json({ success: true });
   })
 );
 
@@ -60,6 +132,12 @@ router.post(
   "/assign-driver",
   asyncHandler(async (req, res) => {
     const payload = assignDriverSchema.parse(req.body);
+    const driverLink = await sql`
+      SELECT 1 FROM owner_drivers
+      WHERE owner_id = ${req.user.userId} AND driver_id = ${payload.driverId}
+      LIMIT 1
+    `;
+    if (!driverLink.length) throw new HttpError(400, "Driver not linked to this owner");
     const request = await sql`
       SELECT id, owner_id, status
       FROM requests
@@ -88,6 +166,61 @@ router.post(
 );
 
 router.get(
+  "/fleet",
+  asyncHandler(async (req, res) => {
+    const rows = await sql`
+      SELECT *
+      FROM fleet
+      WHERE owner_id = ${req.user.userId}
+      ORDER BY created_at DESC
+    `;
+    res.json({ success: true, data: rows });
+  })
+);
+
+router.post(
+  "/fleet",
+  asyncHandler(async (req, res) => {
+    const payload = fleetCreateSchema.parse(req.body);
+    const rows = await sql`
+      INSERT INTO fleet (owner_id, name, type, capacity_tons, registration, status)
+      VALUES (
+        ${req.user.userId},
+        ${payload.name},
+        ${payload.type || null},
+        ${payload.capacityTons || null},
+        ${payload.registration || null},
+        ${payload.status || "active"}
+      )
+      RETURNING *
+    `;
+    res.status(201).json({ success: true, data: rows[0] });
+  })
+);
+
+router.patch(
+  "/fleet/:fleetId",
+  asyncHandler(async (req, res) => {
+    const payload = fleetUpdateSchema.parse(req.body);
+    const { fleetId } = req.params;
+    const rows = await sql`
+      UPDATE fleet
+      SET
+        name = COALESCE(${payload.name}, name),
+        type = COALESCE(${payload.type || null}, type),
+        capacity_tons = COALESCE(${payload.capacityTons || null}, capacity_tons),
+        registration = COALESCE(${payload.registration || null}, registration),
+        status = COALESCE(${payload.status || null}, status),
+        updated_at = now()
+      WHERE id = ${fleetId} AND owner_id = ${req.user.userId}
+      RETURNING *
+    `;
+    if (!rows.length) throw new HttpError(404, "Fleet item not found");
+    res.json({ success: true, data: rows[0] });
+  })
+);
+
+router.get(
   "/jobs",
   asyncHandler(async (req, res) => {
     const rows = await sql`
@@ -98,6 +231,80 @@ router.get(
       ORDER BY j.created_at DESC
     `;
     res.json({ success: true, data: rows });
+  })
+);
+
+router.get(
+  "/requests/:id/tracking",
+  asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const rows = await sql`
+      SELECT
+        r.*,
+        j.id AS job_id,
+        j.status AS job_status,
+        j.driver_id,
+        j.crane_registration,
+        j.started_at,
+        j.completed_at,
+        owner.name AS owner_name,
+        owner.phone AS owner_phone,
+        driver.name AS driver_name,
+        driver.phone AS driver_phone
+      FROM requests r
+      LEFT JOIN jobs j ON j.request_id = r.id
+      LEFT JOIN users owner ON owner.id = r.owner_id
+      LEFT JOIN users driver ON driver.id = j.driver_id
+      WHERE r.id = ${id} AND r.owner_id = ${req.user.userId}
+      LIMIT 1
+    `;
+    if (!rows.length) {
+      return res.status(404).json({ success: false, message: "Request not found" });
+    }
+
+    const request = rows[0];
+    let lastEvent = null;
+    if (request.job_id) {
+      const events = await sql`
+        SELECT *
+        FROM tracking_events
+        WHERE job_id = ${request.job_id}
+        ORDER BY captured_at DESC
+        LIMIT 1
+      `;
+      lastEvent = events[0] || null;
+    }
+
+    res.json({
+      success: true,
+      data: {
+        request,
+        driver: request.driver_id
+          ? {
+              id: request.driver_id,
+              name: request.driver_name,
+              phone: request.driver_phone
+            }
+          : null,
+        owner: request.owner_id
+          ? {
+              id: request.owner_id,
+              name: request.owner_name,
+              phone: request.owner_phone
+            }
+          : null,
+        job: request.job_id
+          ? {
+              id: request.job_id,
+              status: request.job_status,
+              craneRegistration: request.crane_registration,
+              startedAt: request.started_at,
+              completedAt: request.completed_at
+            }
+          : null,
+        lastEvent
+      }
+    });
   })
 );
 
