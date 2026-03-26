@@ -45,6 +45,16 @@ const resetPasswordSchema = z.object({
   otp: z.string().length(6),
   newPassword: z.string().min(6),
 });
+const updateProfileSchema = z.object({
+  name: z.string().min(2).optional(),
+  email: z.string().email().optional(),
+  phone: z.string().min(7).optional(),
+});
+const updateLocationSchema = z.object({
+  address: z.string().min(3),
+  latitude: z.number().min(-90).max(90),
+  longitude: z.number().min(-180).max(180),
+});
 
 router.post(
   "/register",
@@ -249,7 +259,9 @@ router.get(
   requireAuth,
   asyncHandler(async (req, res) => {
     const result = await sql`
-      SELECT id, name, email, phone, role, is_active, email_verified_at, created_at, updated_at
+      SELECT id, name, email, phone, role, is_active, email_verified_at,
+             location_address, location_lat, location_lng,
+             created_at, updated_at
       FROM users
       WHERE id = ${req.user.userId}
       LIMIT 1
@@ -257,6 +269,58 @@ router.get(
     if (!result.length) throw new HttpError(404, "User not found");
 
     res.json({ success: true, data: result[0] });
+  }),
+);
+
+router.put(
+  "/me",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const payload = updateProfileSchema.parse(req.body);
+
+    if (payload.email) {
+      const existing =
+        await sql`SELECT id FROM users WHERE email = ${payload.email.toLowerCase()} AND id <> ${req.user.userId} LIMIT 1`;
+      if (existing.length) throw new HttpError(409, "Email already in use");
+    }
+
+    const rows = await sql`
+      UPDATE users
+      SET
+        name = COALESCE(${payload.name}, name),
+        email = COALESCE(${payload.email?.toLowerCase() || null}, email),
+        phone = COALESCE(${payload.phone || null}, phone),
+        updated_at = now()
+      WHERE id = ${req.user.userId}
+      RETURNING id, name, email, phone, role, email_verified_at,
+                location_address, location_lat, location_lng,
+                created_at, updated_at
+    `;
+
+    if (!rows.length) throw new HttpError(404, "User not found");
+    res.json({ success: true, data: rows[0] });
+  }),
+);
+
+router.put(
+  "/location",
+  requireAuth,
+  asyncHandler(async (req, res) => {
+    const payload = updateLocationSchema.parse(req.body);
+    const rows = await sql`
+      UPDATE users
+      SET
+        location_address = ${payload.address},
+        location_lat = ${payload.latitude},
+        location_lng = ${payload.longitude},
+        updated_at = now()
+      WHERE id = ${req.user.userId}
+      RETURNING id, name, email, phone, role, email_verified_at,
+                location_address, location_lat, location_lng,
+                created_at, updated_at
+    `;
+    if (!rows.length) throw new HttpError(404, "User not found");
+    res.json({ success: true, data: rows[0] });
   }),
 );
 
