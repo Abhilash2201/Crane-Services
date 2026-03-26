@@ -1,4 +1,4 @@
-import { Bell, MapPin, Menu, Search } from "lucide-react";
+import { Bell, ChevronDown, MapPin, Menu, Search, User } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import styled from "styled-components";
@@ -49,7 +49,8 @@ const SearchRow = styled.div`
   grid-template-columns: 1fr;
   gap: 8px;
   @media (min-width: 900px) {
-    grid-template-columns: 160px 1fr;
+    grid-template-columns: 200px 1fr auto;
+    align-items: center;
   }
 `;
 const Nav = styled.nav<{ $open: boolean }>`
@@ -76,18 +77,86 @@ const Content = styled.main`
   margin: 0 auto;
   padding: 20px 16px 34px;
 `;
+const ProfileWrap = styled.div`
+  position: relative;
+`;
+const ProfileButton = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: #fff;
+  border-radius: 999px;
+  padding: 4px 10px 4px 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+`;
+const Avatar = styled.span`
+  width: 28px;
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #0f172a;
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+`;
+const ProfileMenu = styled.div`
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  min-width: 180px;
+  background: #fff;
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  border-radius: 12px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.12);
+  padding: 6px;
+  display: grid;
+  gap: 4px;
+  z-index: 50;
+`;
+const ProfileItem = styled(Link)`
+  padding: 8px 10px;
+  border-radius: 8px;
+  color: ${({ theme }) => theme.colors.navy};
+  font-size: 0.9rem;
+  &:hover {
+    background: #f1f5f9;
+  }
+`;
 
 export function CustomerLayout({ children }: { children: React.ReactNode }) {
   const [open, setOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [authPayload, setAuthPayload] = useState<{
     refreshToken?: string;
     user?: { name?: string; email?: string };
   } | null>(null);
+  const [location, setLocation] = useState<{
+    address?: string;
+    latitude?: number;
+    longitude?: number;
+  } | null>(null);
+  const [locationInput, setLocationInput] = useState("");
+  const [locating, setLocating] = useState(false);
 
   const isAuthenticated = useMemo(
     () => Boolean(authPayload?.refreshToken),
     [authPayload],
   );
+  const displayName =
+    authPayload?.user?.name ||
+    authPayload?.user?.email ||
+    "Account";
+  const initials = displayName
+    .split(" ")
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase())
+    .join("");
 
   useEffect(() => {
     const loadAuth = () => {
@@ -103,6 +172,27 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
     window.addEventListener("auth-changed", loadAuth);
     return () => window.removeEventListener("auth-changed", loadAuth);
   }, []);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    api
+      .get("/auth/me")
+      .then((res) => {
+        const data = res.data?.data;
+        if (data?.location_address) {
+          const next = {
+            address: data.location_address,
+            latitude: data.location_lat,
+            longitude: data.location_lng,
+          };
+          setLocation(next);
+          setLocationInput(data.location_address || "");
+        }
+      })
+      .catch(() => {
+        // Ignore for header display.
+      });
+  }, [isAuthenticated]);
 
   const handleLogout = async () => {
     if (!authPayload?.refreshToken) {
@@ -124,6 +214,138 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
       toast.success("Logged out.");
     }
   };
+
+  const saveLocation = async (next: {
+    address: string;
+    latitude: number;
+    longitude: number;
+  }) => {
+    setLocation(next);
+    setLocationInput(next.address);
+    if (!isAuthenticated) {
+      toast.error("Login to save location.");
+      return;
+    }
+    try {
+      await api.put("/auth/location", next);
+      toast.success("Location saved.");
+    } catch (error: any) {
+      toast.error(
+        error?.response?.data?.message ||
+          "Unable to save location. Please try again.",
+      );
+    }
+  };
+
+  const ensureMapsLoaded = async () => {
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as
+      | string
+      | undefined;
+    if (!apiKey) throw new Error("Maps API key missing");
+    if ((window as any).google?.maps?.Geocoder) return;
+
+    const scriptId = "google-maps-geocoder";
+    const existing = document.getElementById(scriptId) as HTMLScriptElement | null;
+    if (existing) {
+      await new Promise<void>((resolve, reject) => {
+        existing.addEventListener("load", () => resolve(), { once: true });
+        existing.addEventListener("error", () => reject(new Error("Maps failed to load")), {
+          once: true,
+        });
+      });
+      return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+      const script = document.createElement("script");
+      script.id = scriptId;
+      script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
+      script.async = true;
+      script.defer = true;
+      script.addEventListener("load", () => resolve());
+      script.addEventListener("error", () => reject(new Error("Maps failed to load")));
+      document.head.appendChild(script);
+    });
+  };
+
+  const reverseGeocode = async (lat: number, lng: number) => {
+    await ensureMapsLoaded();
+    const geocoder = new (window as any).google.maps.Geocoder();
+    const results = await new Promise<any[]>((resolve, reject) => {
+      geocoder.geocode({ location: { lat, lng } }, (res: any, status: string) => {
+        if (status !== "OK" || !res?.length) {
+          reject(new Error("Unable to resolve address"));
+          return;
+        }
+        resolve(res);
+      });
+    });
+    return results[0].formatted_address as string;
+  };
+
+  const forwardGeocode = async (address: string) => {
+    await ensureMapsLoaded();
+    const geocoder = new (window as any).google.maps.Geocoder();
+    const results = await new Promise<any[]>((resolve, reject) => {
+      geocoder.geocode({ address }, (res: any, status: string) => {
+        if (status !== "OK" || !res?.length) {
+          reject(new Error("Address not found"));
+          return;
+        }
+        resolve(res);
+      });
+    });
+    const result = results[0];
+    const location = result.geometry?.location;
+    if (!location) throw new Error("Address not found");
+    return {
+      address: result.formatted_address as string,
+      latitude: Number(location.lat()),
+      longitude: Number(location.lng()),
+    };
+  };
+
+  const handleUseMyLocation = () => {
+    if (!navigator.geolocation) {
+      toast.error("Geolocation is not supported in this browser.");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          const address = await reverseGeocode(lat, lng);
+          await saveLocation({ address, latitude: lat, longitude: lng });
+        } catch (error: any) {
+          toast.error(error?.message || "Unable to get address.");
+        } finally {
+          setLocating(false);
+        }
+      },
+      () => {
+        toast.error("Location permission denied.");
+        setLocating(false);
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  };
+
+  const handleAddressSave = async () => {
+    const trimmed = locationInput.trim();
+    if (trimmed.length < 3) {
+      toast.error("Enter a valid address or pincode.");
+      return;
+    }
+    try {
+      const resolved = await forwardGeocode(trimmed);
+      await saveLocation(resolved);
+    } catch (error: any) {
+      toast.error(error?.message || "Unable to find address.");
+    }
+  };
+
   return (
     <Shell>
       <Header>
@@ -148,8 +370,13 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
             </Button>
           </div>
           <SearchRow>
-            <Button variant="outline">
-              <MapPin size={16} /> Bengaluru
+            <Button variant="outline" onClick={handleUseMyLocation}>
+              <MapPin size={16} />{" "}
+              {locating
+                ? "Locating..."
+                : location?.address
+                  ? location.address
+                  : "Use my location"}
             </Button>
             <div style={{ position: "relative" }}>
               <Search
@@ -162,10 +389,26 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
                 }}
               />
               <Input
-                placeholder="Search crane variant, capacity, owner"
+                placeholder="Enter address or pincode"
                 style={{ paddingLeft: 32 }}
+                value={locationInput}
+                onChange={(e) => setLocationInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                    e.preventDefault();
+                    handleAddressSave();
+                  }
+                }}
               />
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleAddressSave}
+              disabled={locating}
+            >
+              Save
+            </Button>
           </SearchRow>
           <Nav $open={open}>
             <NavItem to="/">How it Works</NavItem>
@@ -177,9 +420,41 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
               <NavItem to="/tracking/latest">Live Tracking</NavItem>
             ) : null}
             {isAuthenticated ? (
-              <Button variant="outline" size="sm" onClick={handleLogout}>
-                Logout
-              </Button>
+              <ProfileWrap>
+                <ProfileButton
+                  onClick={() => setProfileOpen((prev) => !prev)}
+                  aria-label="Open profile menu"
+                >
+                  <Avatar>{initials || <User size={14} />}</Avatar>
+                  <span style={{ maxWidth: 120, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {displayName}
+                  </span>
+                  <ChevronDown size={14} />
+                </ProfileButton>
+                {profileOpen ? (
+                  <ProfileMenu>
+                    <ProfileItem to="/profile">Profile</ProfileItem>
+                    <button
+                      onClick={() => {
+                        setProfileOpen(false);
+                        handleLogout();
+                      }}
+                      style={{
+                        textAlign: "left",
+                        padding: "8px 10px",
+                        borderRadius: 8,
+                        border: "none",
+                        background: "transparent",
+                        cursor: "pointer",
+                        color: "#dc2626",
+                        fontSize: "0.9rem",
+                      }}
+                    >
+                      Logout
+                    </button>
+                  </ProfileMenu>
+                ) : null}
+              </ProfileWrap>
             ) : (
               <>
                 <Link to="/auth?mode=signup">

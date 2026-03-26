@@ -4,6 +4,7 @@ import { AuthPage } from "./pages/AuthPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HomePage } from "./pages/HomePage";
 import { NewRequestPage } from "./pages/NewRequestPage";
+import { ProfilePage } from "./pages/ProfilePage";
 import { TrackingPage } from "./pages/TrackingPage";
 
 function RequireAuth({ children }: { children: React.ReactNode }) {
@@ -43,6 +44,14 @@ function App() {
           element={
             <RequireAuth>
               <TrackingPage />
+            </RequireAuth>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <RequireAuth>
+              <ProfilePage />
             </RequireAuth>
           }
         />
