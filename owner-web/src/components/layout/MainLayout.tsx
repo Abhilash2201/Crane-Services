@@ -130,6 +130,7 @@ const links = [
   { to: "/dashboard", label: "Overview", icon: BriefcaseBusiness },
   { to: "/live-requests", label: "Live Requests", icon: ClipboardList },
   { to: "/fleet", label: "My Fleet", icon: Truck },
+  { to: "/dispatch", label: "Dispatch Board", icon: Building2 },
   { to: "/active-jobs", label: "Active Jobs", icon: Building2 },
   { to: "/drivers", label: "Drivers", icon: Users },
   { to: "/reports", label: "Earnings", icon: ChartColumnBig }

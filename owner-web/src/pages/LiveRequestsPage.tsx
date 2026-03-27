@@ -13,7 +13,6 @@ export function LiveRequestsPage() {
   const [distance, setDistance] = useState("25");
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [priceQuotes, setPriceQuotes] = useState<Record<string, string>>({});
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -133,30 +132,13 @@ export function LiveRequestsPage() {
                 justifyContent: "flex-end",
               }}
             >
-              <Input
-                placeholder="Price quote (INR)"
-                value={priceQuotes[item.id] || ""}
-                onChange={(e) =>
-                  setPriceQuotes((prev) => ({
-                    ...prev,
-                    [item.id]: e.target.value.replace(/[^\d.]/g, ""),
-                  }))
-                }
-                style={{ maxWidth: 220 }}
-              />
               <Button
                 size="lg"
                 style={{ minWidth: 190 }}
                 onClick={() => {
-                  const priceQuote = Number(priceQuotes[item.id]);
-                  if (!priceQuote || priceQuote <= 0) {
-                    setError("Enter a valid price quote.");
-                    return;
-                  }
                   api
                     .post("/owner/accept-request", {
-                      requestId: item.id,
-                      priceQuote,
+                      requestId: item.id
                     })
                     .then(() => {
                       setRequests((prev) =>

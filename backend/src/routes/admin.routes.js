@@ -4,11 +4,18 @@ const { sql } = require("../db/neon");
 const { asyncHandler } = require("../utils/asyncHandler");
 const { HttpError } = require("../utils/httpError");
 const { requireAuth, authorize } = require("../middlewares/auth");
+const { getPricingRule } = require("../services/pricing");
 
 const router = express.Router();
 
 const userStatusSchema = z.object({
   isActive: z.boolean()
+});
+
+const pricingSchema = z.object({
+  baseCharge: z.coerce.number().positive(),
+  baseHours: z.coerce.number().int().positive(),
+  overtimeRate: z.coerce.number().positive()
 });
 
 router.use(requireAuth, authorize("admin"));
@@ -41,6 +48,27 @@ router.get(
     `;
 
     res.json({ success: true, data: { users, requests, revenue } });
+  })
+);
+
+router.get(
+  "/pricing",
+  asyncHandler(async (_req, res) => {
+    const rule = await getPricingRule();
+    res.json({ success: true, data: rule });
+  })
+);
+
+router.put(
+  "/pricing",
+  asyncHandler(async (req, res) => {
+    const payload = pricingSchema.parse(req.body);
+    const rows = await sql`
+      INSERT INTO pricing_rules (base_charge, base_hours, overtime_rate)
+      VALUES (${payload.baseCharge}, ${payload.baseHours}, ${payload.overtimeRate})
+      RETURNING id, base_charge, base_hours, overtime_rate, created_at, updated_at
+    `;
+    res.json({ success: true, data: rows[0] });
   })
 );
 

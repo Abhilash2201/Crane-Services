@@ -74,7 +74,7 @@ export function TrackingPage() {
             ["Accepted", payload?.request?.updated_at],
             ["In Progress", payload?.job?.startedAt || payload?.job?.started_at],
             ["Completed", payload?.job?.completedAt || payload?.job?.completed_at]
-          ].map(([title, stamp], index) => (
+          ].map(([title, stamp]) => (
             <div key={title} style={{ display: "grid", gridTemplateColumns: "20px 1fr", gap: 10 }}>
               <div style={{ width: 14, height: 14, marginTop: 4, borderRadius: "50%", background: stamp ? "#22C55E" : "#FF6200" }} />
               <div style={{ borderLeft: "2px solid #E2E8F0", paddingLeft: 10, paddingBottom: 10 }}>

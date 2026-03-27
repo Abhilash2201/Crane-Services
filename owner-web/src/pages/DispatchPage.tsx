@@ -62,10 +62,24 @@ export function DispatchPage() {
     () =>
       fleet.map((f: any) => ({
         registration: f.registration,
-        label: `${f.name} (${f.registration || "no reg"})`
+        label: `${f.name} (${f.registration || "no reg"})`,
+        capacity: f.capacity_tons ? Number(f.capacity_tons) : null
       })),
     [fleet]
   );
+
+  const getSuggestedFleet = (requiredTons?: number | null) => {
+    if (!requiredTons || !fleetOptions.length) return fleetOptions;
+    const sorted = [...fleetOptions].sort((a, b) => {
+      const aCap = a.capacity ?? Infinity;
+      const bCap = b.capacity ?? Infinity;
+      const aDelta = aCap >= requiredTons ? aCap - requiredTons : Infinity;
+      const bDelta = bCap >= requiredTons ? bCap - requiredTons : Infinity;
+      if (aDelta !== bDelta) return aDelta - bDelta;
+      return aCap - bCap;
+    });
+    return sorted;
+  };
 
   const handleAssign = async (requestId: string) => {
     const choice = selection[requestId] || {};
@@ -152,12 +166,19 @@ export function DispatchPage() {
                 style={{ padding: "10px", borderRadius: 10, border: "1px solid #E2E8F0" }}
               >
                 <option value="">Select crane</option>
-                {fleetOptions.map((f) => (
+                {getSuggestedFleet(
+                  job.required_capacity_tons ? Number(job.required_capacity_tons) : null
+                ).map((f) => (
                   <option key={f.registration || f.label} value={f.registration || ""}>
-                    {f.label}
+                    {f.label}{f.capacity ? ` • ${f.capacity}T` : ""}
                   </option>
                 ))}
               </select>
+              {job.required_capacity_tons ? (
+                <small style={{ color: "#64748B" }}>
+                  Suggested for {Number(job.required_capacity_tons)}T requirement.
+                </small>
+              ) : null}
             </div>
 
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>

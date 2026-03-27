@@ -20,11 +20,13 @@ CREATE TABLE IF NOT EXISTS requests (
   pickup_address TEXT NOT NULL,
   drop_address TEXT,
   required_capacity_tons NUMERIC(10,2),
+  duration_hours NUMERIC(10,2),
   scheduled_at TIMESTAMPTZ,
   status TEXT NOT NULL DEFAULT 'pending'
     CHECK (status IN ('pending','accepted','in_progress','completed','cancelled')),
   notes TEXT,
   price_quote NUMERIC(12,2),
+  estimated_price NUMERIC(12,2),
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );

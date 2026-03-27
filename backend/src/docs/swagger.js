@@ -303,6 +303,7 @@ const options = {
                     pickupAddress: { type: "string" },
                     dropAddress: { type: "string" },
                     requiredCapacityTons: { type: "number" },
+                    durationHours: { type: "number" },
                     scheduledAt: { type: "string", format: "date-time" },
                     notes: { type: "string" }
                   }
@@ -478,6 +479,47 @@ const options = {
           responses: { 201: { description: "Linked" } }
         }
       },
+      "/api/owner/drivers/create": {
+        post: {
+          tags: ["Owner"],
+          security: [{ bearerAuth: [] }],
+          summary: "Create and link driver",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["name", "email", "phone"],
+                  properties: {
+                    name: { type: "string" },
+                    email: { type: "string", format: "email" },
+                    phone: { type: "string" },
+                    password: { type: "string" }
+                  }
+                }
+              }
+            }
+          },
+          responses: { 201: { description: "Driver created" } }
+        }
+      },
+      "/api/owner/driver-search": {
+        get: {
+          tags: ["Owner"],
+          security: [{ bearerAuth: [] }],
+          summary: "Search drivers by name/email/phone",
+          parameters: [
+            {
+              in: "query",
+              name: "query",
+              required: true,
+              schema: { type: "string" }
+            }
+          ],
+          responses: { 200: { description: "Driver search results" } }
+        }
+      },
       "/api/owner/drivers/{driverId}": {
         delete: {
           tags: ["Owner"],
@@ -556,10 +598,9 @@ const options = {
               "application/json": {
                 schema: {
                   type: "object",
-                  required: ["requestId", "priceQuote"],
+                  required: ["requestId"],
                   properties: {
-                    requestId: { type: "string", format: "uuid" },
-                    priceQuote: { type: "number" }
+                    requestId: { type: "string", format: "uuid" }
                   }
                 }
               }
@@ -750,6 +791,43 @@ const options = {
             }
           },
           responses: { 200: { description: "Intent created" } }
+        }
+      },
+      "/api/pricing": {
+        get: {
+          tags: ["Pricing"],
+          summary: "Get current pricing rule",
+          responses: { 200: { description: "Pricing rule" } }
+        }
+      },
+      "/api/admin/pricing": {
+        get: {
+          tags: ["Admin"],
+          security: [{ bearerAuth: [] }],
+          summary: "Get pricing rule",
+          responses: { 200: { description: "Pricing rule" } }
+        },
+        put: {
+          tags: ["Admin"],
+          security: [{ bearerAuth: [] }],
+          summary: "Update pricing rule",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["baseCharge", "baseHours", "overtimeRate"],
+                  properties: {
+                    baseCharge: { type: "number" },
+                    baseHours: { type: "integer" },
+                    overtimeRate: { type: "number" }
+                  }
+                }
+              }
+            }
+          },
+          responses: { 200: { description: "Updated" } }
         }
       },
       "/webhooks/stripe": {

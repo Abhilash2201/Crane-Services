@@ -29,7 +29,8 @@ export function NewRequestPage() {
   const [pickupAddress, setPickupAddress] = useState("");
   const [dropAddress, setDropAddress] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
-  const [duration, setDuration] = useState("");
+  const [durationHours, setDurationHours] = useState("");
+  const [pricing, setPricing] = useState<{ base_charge: number; base_hours: number; overtime_rate: number } | null>(null);
   const [loadDescription, setLoadDescription] = useState("");
   const [notes, setNotes] = useState("");
   const [photos, setPhotos] = useState<File[]>([]);
@@ -129,6 +130,24 @@ export function NewRequestPage() {
     }
   }, [mapsReady, step]);
 
+  useEffect(() => {
+    api
+      .get("/pricing")
+      .then((res) => setPricing(res.data?.data || null))
+      .catch(() => setPricing(null));
+  }, []);
+
+  const estimatedPrice = useMemo(() => {
+    if (!pricing) return null;
+    const baseHours = Number(pricing.base_hours) || 3;
+    const baseCharge = Number(pricing.base_charge) || 3000;
+    const overtimeRate = Number(pricing.overtime_rate) || 1000;
+    const hours = durationHours ? Math.ceil(Number(durationHours)) : baseHours;
+    const billable = Math.max(baseHours, hours);
+    const overtime = Math.max(0, billable - baseHours);
+    return baseCharge + overtime * overtimeRate;
+  }, [durationHours, pricing]);
+
   const handleSubmit = () => {
     let isAuthed = false;
     let accessToken: string | undefined;
@@ -161,10 +180,10 @@ export function NewRequestPage() {
       pickupAddress: pickupAddress.trim(),
       dropAddress: dropAddress.trim() || undefined,
       requiredCapacityTons: selectedCraneData?.capacity,
+      durationHours: durationHours ? Number(durationHours) : undefined,
       scheduledAt: scheduledAt || undefined,
       notes: [
         loadDescription ? `Load: ${loadDescription}` : null,
-        duration ? `Duration: ${duration}` : null,
         notes ? `Notes: ${notes}` : null,
       ]
         .filter(Boolean)
@@ -277,11 +296,11 @@ export function NewRequestPage() {
                 value={scheduledAt}
                 onChange={(e) => setScheduledAt(e.target.value)}
               />
-              <label style={{ display: "block", marginTop: 10 }}>Duration</label>
+              <label style={{ display: "block", marginTop: 10 }}>Duration (hours)</label>
               <Input
-                placeholder="8 hours"
-                value={duration}
-                onChange={(e) => setDuration(e.target.value)}
+                placeholder="4"
+                value={durationHours}
+                onChange={(e) => setDurationHours(e.target.value.replace(/[^\d.]/g, ""))}
               />
             </div>
           </div>
@@ -332,8 +351,16 @@ export function NewRequestPage() {
             <p><b>Pickup:</b> {pickupAddress || "-"}</p>
             <p><b>Drop:</b> {dropAddress || "-"}</p>
             <p><b>Schedule:</b> {scheduledAt || "-"}</p>
-            <p><b>Duration:</b> {duration || "-"}</p>
-            <p><b>Expected Budget:</b> ?38,000 - ?52,000</p>
+            <p><b>Duration:</b> {durationHours ? `${durationHours} hrs` : "-"}</p>
+            <p>
+              <b>Estimated Price:</b>{" "}
+              {estimatedPrice ? `₹${estimatedPrice.toLocaleString()}` : "—"}
+            </p>
+            {pricing ? (
+              <small style={{ color: "#64748B" }}>
+                Pricing: ₹{pricing.base_charge} for first {pricing.base_hours} hours, then ₹{pricing.overtime_rate}/hour.
+              </small>
+            ) : null}
           </CardContent></Card>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
             <Button variant="outline" onClick={() => setStep(2)}>Edit Details</Button>

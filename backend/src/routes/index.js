@@ -6,6 +6,7 @@ const ownerRoutes = require("./owner.routes");
 const driverRoutes = require("./driver.routes");
 const adminRoutes = require("./admin.routes");
 const paymentsRoutes = require("./payments.routes");
+const pricingRoutes = require("./pricing.routes");
 
 const router = express.Router();
 
@@ -16,5 +17,6 @@ router.use("/owner", ownerRoutes);
 router.use("/driver", driverRoutes);
 router.use("/admin", adminRoutes);
 router.use("/payments", paymentsRoutes);
+router.use("/", pricingRoutes);
 
 module.exports = router;

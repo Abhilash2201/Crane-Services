@@ -6,6 +6,7 @@ const { z } = require("zod");
 const { sql } = require("../db/neon");
 const { asyncHandler } = require("../utils/asyncHandler");
 const { requireAuth, authorize } = require("../middlewares/auth");
+const { getPricingRule, calculatePrice } = require("../services/pricing");
 
 const router = express.Router();
 
@@ -13,6 +14,7 @@ const requestSchema = z.object({
   pickupAddress: z.string().min(5),
   dropAddress: z.string().min(5).optional(),
   requiredCapacityTons: z.coerce.number().positive().optional(),
+  durationHours: z.coerce.number().positive().optional(),
   scheduledAt: z.string().datetime().optional(),
   notes: z.string().max(500).optional()
 });
@@ -84,17 +86,21 @@ router.post(
   "/requests",
   asyncHandler(async (req, res) => {
     const payload = requestSchema.parse(req.body);
+    const pricing = await getPricingRule();
+    const estimatedPrice = calculatePrice(payload.durationHours, pricing);
     const result = await sql`
       INSERT INTO requests (
-        customer_id, pickup_address, drop_address, required_capacity_tons, scheduled_at, notes
+        customer_id, pickup_address, drop_address, required_capacity_tons, duration_hours, scheduled_at, notes, estimated_price
       )
       VALUES (
         ${req.user.userId},
         ${payload.pickupAddress},
         ${payload.dropAddress || null},
         ${payload.requiredCapacityTons || null},
+        ${payload.durationHours || null},
         ${payload.scheduledAt || null},
-        ${payload.notes || null}
+        ${payload.notes || null},
+        ${estimatedPrice}
       )
       RETURNING *
     `;

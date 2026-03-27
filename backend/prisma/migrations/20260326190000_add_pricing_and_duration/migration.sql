@@ -1,0 +1,12 @@
+ALTER TABLE requests
+  ADD COLUMN IF NOT EXISTS duration_hours NUMERIC(10,2),
+  ADD COLUMN IF NOT EXISTS estimated_price NUMERIC(12,2);
+
+CREATE TABLE IF NOT EXISTS pricing_rules (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  base_charge NUMERIC(12,2) NOT NULL DEFAULT 3000,
+  base_hours INT NOT NULL DEFAULT 3,
+  overtime_rate NUMERIC(12,2) NOT NULL DEFAULT 1000,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);

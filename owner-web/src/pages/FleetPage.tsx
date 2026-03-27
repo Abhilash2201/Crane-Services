@@ -17,6 +17,8 @@ export function FleetPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [modalError, setModalError] = useState("");
   const [form, setForm] = useState({
     name: "",
     type: "",
@@ -40,7 +42,7 @@ export function FleetPage() {
       {loading ? <small style={{ color: "#64748B" }}>Loading...</small> : null}
       {error ? <small style={{ color: "#DC2626" }}>{error}</small> : null}
       <div style={{ display: "flex", gap: 10 }}>
-        <Button onClick={() => setOpen(true)}>Add Crane</Button>
+        <Button onClick={() => { setEditingId(null); setOpen(true); }}>Add Crane</Button>
       </div>
       <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 12 }}>
         {fleet.map((crane, idx) => (
@@ -90,27 +92,48 @@ export function FleetPage() {
                   {crane.status === "active" ? "Mark Maintenance" : "Activate"}
                 </Button>
               </div>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setEditingId(crane.id);
+                    setForm({
+                      name: crane.name || "",
+                      type: crane.type || "",
+                      capacityTons: crane.capacity_tons ? String(crane.capacity_tons) : "",
+                      registration: crane.registration || ""
+                    });
+                    setOpen(true);
+                  }}
+                >
+                  Edit
+                </Button>
+              </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <Modal open={open} onClose={() => setOpen(false)}>
-        <h3 style={{ marginTop: 0 }}>Add Crane</h3>
+      <Modal open={open} onClose={() => { setOpen(false); setModalError(""); }}>
+        <h3 style={{ marginTop: 0 }}>{editingId ? "Edit Crane" : "Add Crane"}</h3>
         <div style={{ display: "grid", gap: 8 }}>
           <label>Name</label>
+          <small style={{ color: "#64748B" }}>Required</small>
           <Input
             placeholder="50T Rough Terrain"
             value={form.name}
             onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
           />
           <label>Type</label>
+          <small style={{ color: "#64748B" }}>Optional</small>
           <Input
             placeholder="Rough Terrain"
             value={form.type}
             onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value }))}
           />
           <label>Capacity (tons)</label>
+          <small style={{ color: "#64748B" }}>Optional</small>
           <Input
             placeholder="50"
             value={form.capacityTons}
@@ -119,40 +142,66 @@ export function FleetPage() {
             }
           />
           <label>Registration</label>
+          <small style={{ color: "#64748B" }}>Optional (must be unique)</small>
           <Input
             placeholder="KA-53-MR-2281"
             value={form.registration}
             onChange={(e) => setForm((prev) => ({ ...prev, registration: e.target.value }))}
           />
+          {modalError ? <small style={{ color: "#DC2626" }}>{modalError}</small> : null}
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 8 }}>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
+            <Button variant="outline" onClick={() => { setOpen(false); setModalError(""); }}>Cancel</Button>
             <Button
               onClick={() => {
+                setModalError("");
                 if (!form.name.trim()) {
-                  setError("Enter crane name.");
+                  setModalError("Crane name is required.");
                   return;
                 }
-                api
-                  .post("/owner/fleet", {
-                    name: form.name.trim(),
-                    type: form.type.trim() || undefined,
-                    capacityTons: form.capacityTons ? Number(form.capacityTons) : undefined,
-                    registration: form.registration.trim() || undefined
-                  })
+                const reg = form.registration.trim();
+                if (reg) {
+                  const duplicate = fleet.some(
+                    (item) =>
+                      item.registration &&
+                      item.registration.toLowerCase() === reg.toLowerCase() &&
+                      item.id !== editingId
+                  );
+                  if (duplicate) {
+                    setModalError("Registration number already exists.");
+                    return;
+                  }
+                }
+                const payload = {
+                  name: form.name.trim(),
+                  type: form.type.trim() || undefined,
+                  capacityTons: form.capacityTons ? Number(form.capacityTons) : undefined,
+                  registration: reg || undefined
+                };
+                const request = editingId
+                  ? api.patch(`/owner/fleet/${editingId}`, payload)
+                  : api.post("/owner/fleet", payload);
+                request
                   .then((res) => {
-                    setFleet((prev) => [res.data?.data, ...prev]);
+                    const next = res.data?.data;
+                    setFleet((prev) =>
+                      editingId
+                        ? prev.map((item) => (item.id === editingId ? next : item))
+                        : [next, ...prev],
+                    );
                     setForm({ name: "", type: "", capacityTons: "", registration: "" });
+                    setEditingId(null);
                     setOpen(false);
+                    setModalError("");
                   })
                   .catch((err) =>
-                    setError(
+                    setModalError(
                       err?.response?.data?.message ||
-                        "Unable to add crane.",
+                        (editingId ? "Unable to update crane." : "Unable to add crane."),
                     ),
                   );
               }}
             >
-              Save
+              {editingId ? "Save Changes" : "Save"}
             </Button>
           </div>
         </div>

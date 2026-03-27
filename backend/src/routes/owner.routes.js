@@ -1,5 +1,6 @@
 const express = require("express");
 const { z } = require("zod");
+const bcrypt = require("bcryptjs");
 const { sql } = require("../db/neon");
 const { asyncHandler } = require("../utils/asyncHandler");
 const { HttpError } = require("../utils/httpError");
@@ -8,8 +9,7 @@ const { requireAuth, authorize } = require("../middlewares/auth");
 const router = express.Router();
 
 const acceptRequestSchema = z.object({
-  requestId: z.string().uuid(),
-  priceQuote: z.coerce.number().positive()
+  requestId: z.string().uuid()
 });
 
 const assignDriverSchema = z.object({
@@ -20,6 +20,17 @@ const assignDriverSchema = z.object({
 
 const addDriverSchema = z.object({
   driverId: z.string().uuid()
+});
+
+const createDriverSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+  phone: z.string().min(7),
+  password: z.string().min(6).optional()
+});
+
+const driverSearchSchema = z.object({
+  query: z.string().min(2)
 });
 
 const fleetCreateSchema = z.object({
@@ -78,6 +89,27 @@ router.get(
   })
 );
 
+router.get(
+  "/driver-search",
+  asyncHandler(async (req, res) => {
+    const { query } = driverSearchSchema.parse(req.query);
+    const q = `%${query.toLowerCase()}%`;
+    const rows = await sql`
+      SELECT id, name, email, phone, is_active
+      FROM users
+      WHERE role = 'driver'
+        AND (
+          LOWER(name) LIKE ${q}
+          OR LOWER(email) LIKE ${q}
+          OR phone LIKE ${q}
+        )
+      ORDER BY name ASC
+      LIMIT 20
+    `;
+    res.json({ success: true, data: rows });
+  })
+);
+
 router.post(
   "/drivers",
   asyncHandler(async (req, res) => {
@@ -92,6 +124,42 @@ router.post(
       ON CONFLICT (driver_id) DO NOTHING
     `;
     res.status(201).json({ success: true });
+  })
+);
+
+router.post(
+  "/drivers/create",
+  asyncHandler(async (req, res) => {
+    const payload = createDriverSchema.parse(req.body);
+    const existing =
+      await sql`SELECT id FROM users WHERE email = ${payload.email.toLowerCase()} LIMIT 1`;
+    if (existing.length) throw new HttpError(409, "Email already in use");
+
+    const rawPassword =
+      payload.password ||
+      Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+    const passwordHash = await bcrypt.hash(rawPassword, 10);
+
+    const rows = await sql`
+      INSERT INTO users (name, email, phone, password_hash, role, email_verified_at)
+      VALUES (${payload.name}, ${payload.email.toLowerCase()}, ${payload.phone}, ${passwordHash}, 'driver', null)
+      RETURNING id, name, email, phone, role, created_at
+    `;
+    const driver = rows[0];
+
+    await sql`
+      INSERT INTO owner_drivers (owner_id, driver_id)
+      VALUES (${req.user.userId}, ${driver.id})
+      ON CONFLICT (driver_id) DO NOTHING
+    `;
+
+    res.status(201).json({
+      success: true,
+      data: {
+        driver,
+        tempPassword: payload.password ? null : rawPassword
+      }
+    });
   })
 );
 
@@ -115,7 +183,6 @@ router.post(
       UPDATE requests
       SET owner_id = ${req.user.userId},
           status = 'accepted',
-          price_quote = ${payload.priceQuote},
           updated_at = now()
       WHERE id = ${payload.requestId} AND status = 'pending'
       RETURNING *
