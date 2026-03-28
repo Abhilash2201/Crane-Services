@@ -2,7 +2,13 @@ import { MessageSquare, Phone, ShieldCheck, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import styled from "styled-components";
-import { MapContainer, Marker, TileLayer, useMap } from "react-leaflet";
+import {
+  MapContainer,
+  Marker,
+  TileLayer,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import L from "leaflet";
 import marker2x from "leaflet/dist/images/marker-icon-2x.png";
@@ -93,7 +99,19 @@ export function TrackingPage() {
     useEffect(() => {
       if (!autoCenter) return;
       map.setView(center, map.getZoom(), { animate: true });
-    }, [center, map]);
+    }, [center, map, autoCenter]);
+    return null;
+  };
+
+  const MapInteractionWatcher = () => {
+    useMapEvents({
+      dragstart() {
+        setAutoCenter(false);
+      },
+      zoomstart() {
+        setAutoCenter(false);
+      },
+    });
     return null;
   };
 
@@ -129,16 +147,13 @@ export function TrackingPage() {
               zoom={15}
               style={{ height: "100%", width: "100%" }}
               scrollWheelZoom={false}
-              whenReady={(map) => {
-                map.target.on("dragstart", () => setAutoCenter(false));
-                map.target.on("zoomstart", () => setAutoCenter(false));
-              }}
             >
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
               <FlyToPosition center={mapCenter} />
+              <MapInteractionWatcher />
               {lastTracking ? (
                 <Marker
                   position={[lastTracking.latitude, lastTracking.longitude]}
