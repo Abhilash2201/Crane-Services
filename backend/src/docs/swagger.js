@@ -766,7 +766,10 @@ const options = {
                     name: { type: "string" },
                     capacityTons: { type: "number" },
                     description: { type: "string" },
-                    isActive: { type: "boolean" }
+                    isActive: { type: "boolean" },
+                    baseCharge: { type: "number" },
+                    baseHours: { type: "number" },
+                    overtimeRate: { type: "number" }
                   }
                 }
               }
@@ -791,7 +794,10 @@ const options = {
                     name: { type: "string" },
                     capacityTons: { type: "number" },
                     description: { type: "string" },
-                    isActive: { type: "boolean" }
+                    isActive: { type: "boolean" },
+                    baseCharge: { type: "number" },
+                    baseHours: { type: "number" },
+                    overtimeRate: { type: "number" }
                   }
                 }
               }
@@ -868,6 +874,10 @@ const options = {
         get: {
           tags: ["Pricing"],
           summary: "Get current pricing rule",
+          parameters: [
+            { in: "query", name: "variantId", required: false, schema: { type: "string", format: "uuid" } },
+            { in: "query", name: "capacityTons", required: false, schema: { type: "number" } }
+          ],
           responses: { 200: { description: "Pricing rule" } }
         }
       },

@@ -131,11 +131,14 @@ export function NewRequestPage() {
   }, [mapsReady, step]);
 
   useEffect(() => {
+    const capacityTons = selectedCraneData?.capacity;
     api
-      .get("/pricing")
+      .get("/pricing", {
+        params: capacityTons ? { capacityTons } : undefined,
+      })
       .then((res) => setPricing(res.data?.data || null))
       .catch(() => setPricing(null));
-  }, []);
+  }, [selectedCraneData]);
 
   const estimatedPrice = useMemo(() => {
     if (!pricing) return null;

@@ -6,8 +6,12 @@ const router = express.Router();
 
 router.get(
   "/pricing",
-  asyncHandler(async (_req, res) => {
-    const rule = await getPricingRule();
+  asyncHandler(async (req, res) => {
+    const variantId = typeof req.query.variantId === "string" ? req.query.variantId : undefined;
+    const capacityTonsRaw =
+      typeof req.query.capacityTons === "string" ? req.query.capacityTons : undefined;
+    const capacityTons = capacityTonsRaw ? Number(capacityTonsRaw) : undefined;
+    const rule = await getPricingRule({ variantId, capacityTons });
     res.json({ success: true, data: rule });
   })
 );

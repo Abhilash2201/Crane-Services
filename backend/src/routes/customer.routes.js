@@ -86,7 +86,9 @@ router.post(
   "/requests",
   asyncHandler(async (req, res) => {
     const payload = requestSchema.parse(req.body);
-    const pricing = await getPricingRule();
+    const pricing = await getPricingRule({
+      capacityTons: payload.requiredCapacityTons
+    });
     const estimatedPrice = calculatePrice(payload.durationHours, pricing);
     const result = await sql`
       INSERT INTO requests (

@@ -1,6 +1,6 @@
 const { sql } = require("../db/neon");
 
-async function getPricingRule() {
+async function getDefaultPricingRule() {
   const rows = await sql`
     SELECT id, base_charge, base_hours, overtime_rate, created_at, updated_at
     FROM pricing_rules
@@ -15,6 +15,49 @@ async function getPricingRule() {
     RETURNING id, base_charge, base_hours, overtime_rate, created_at, updated_at
   `;
   return created[0];
+}
+
+async function getPricingRule({ variantId, capacityTons } = {}) {
+  if (variantId) {
+    const rows = await sql`
+      SELECT id, base_charge, base_hours, overtime_rate
+      FROM crane_variants
+      WHERE id = ${variantId} AND is_active = true
+      LIMIT 1
+    `;
+    if (rows.length) {
+      const fallback = await getDefaultPricingRule();
+      return {
+        ...fallback,
+        base_charge: rows[0].base_charge ?? fallback.base_charge,
+        base_hours: rows[0].base_hours ?? fallback.base_hours,
+        overtime_rate: rows[0].overtime_rate ?? fallback.overtime_rate,
+      };
+    }
+  }
+
+  if (capacityTons) {
+    const rows = await sql`
+      SELECT id, base_charge, base_hours, overtime_rate, capacity_tons
+      FROM crane_variants
+      WHERE is_active = true
+        AND capacity_tons IS NOT NULL
+        AND capacity_tons >= ${capacityTons}
+      ORDER BY capacity_tons ASC
+      LIMIT 1
+    `;
+    if (rows.length) {
+      const fallback = await getDefaultPricingRule();
+      return {
+        ...fallback,
+        base_charge: rows[0].base_charge ?? fallback.base_charge,
+        base_hours: rows[0].base_hours ?? fallback.base_hours,
+        overtime_rate: rows[0].overtime_rate ?? fallback.overtime_rate,
+      };
+    }
+  }
+
+  return getDefaultPricingRule();
 }
 
 function calculatePrice(durationHours, rule) {

@@ -18,6 +18,9 @@ type VariantForm = {
   capacityTons: string;
   description: string;
   isActive: boolean;
+  baseCharge: string;
+  baseHours: string;
+  overtimeRate: string;
 };
 
 const emptyForm: VariantForm = {
@@ -25,6 +28,9 @@ const emptyForm: VariantForm = {
   capacityTons: "",
   description: "",
   isActive: true,
+  baseCharge: "",
+  baseHours: "",
+  overtimeRate: "",
 };
 
 export function VariantsPage() {
@@ -59,6 +65,9 @@ export function VariantsPage() {
       capacityTons: row.capacity_tons ? String(row.capacity_tons) : "",
       description: row.description || "",
       isActive: Boolean(row.is_active),
+      baseCharge: row.base_charge ? String(row.base_charge) : "",
+      baseHours: row.base_hours ? String(row.base_hours) : "",
+      overtimeRate: row.overtime_rate ? String(row.overtime_rate) : "",
     });
     setMessage("");
     setOpen(true);
@@ -76,6 +85,9 @@ export function VariantsPage() {
       capacityTons: form.capacityTons ? Number(form.capacityTons) : undefined,
       description: form.description.trim() || undefined,
       isActive: form.isActive,
+      baseCharge: form.baseCharge ? Number(form.baseCharge) : undefined,
+      baseHours: form.baseHours ? Number(form.baseHours) : undefined,
+      overtimeRate: form.overtimeRate ? Number(form.overtimeRate) : undefined,
     };
 
     const request = form.id
@@ -123,6 +135,9 @@ export function VariantsPage() {
                   "Name",
                   "Capacity (tons)",
                   "Description",
+                  "Base Charge",
+                  "Base Hours",
+                  "Overtime / hr",
                   "Status",
                   "Created",
                   "Actions",
@@ -145,14 +160,14 @@ export function VariantsPage() {
             <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: 12 }}>
+                  <td colSpan={9} style={{ padding: 12 }}>
                     Loading variants...
                   </td>
                 </tr>
               ) : null}
               {!loading && rows.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ padding: 12 }}>
+                  <td colSpan={9} style={{ padding: 12 }}>
                     No variants found.
                   </td>
                 </tr>
@@ -167,6 +182,15 @@ export function VariantsPage() {
                   </td>
                   <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
                     {row.description || "—"}
+                  </td>
+                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                    {row.base_charge ?? "—"}
+                  </td>
+                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                    {row.base_hours ?? "—"}
+                  </td>
+                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                    {row.overtime_rate ?? "—"}
                   </td>
                   <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
                     {row.is_active ? "Active" : "Inactive"}
@@ -220,6 +244,53 @@ export function VariantsPage() {
               }
             />
           </label>
+          <div
+            style={{
+              display: "grid",
+              gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
+              gap: 10,
+            }}
+          >
+            <label style={{ display: "grid", gap: 6 }}>
+              <span>Base Charge</span>
+              <Input
+                value={form.baseCharge}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    baseCharge: event.target.value.replace(/[^\d.]/g, ""),
+                  }))
+                }
+                placeholder="3000"
+              />
+            </label>
+            <label style={{ display: "grid", gap: 6 }}>
+              <span>Base Hours</span>
+              <Input
+                value={form.baseHours}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    baseHours: event.target.value.replace(/[^\d.]/g, ""),
+                  }))
+                }
+                placeholder="3"
+              />
+            </label>
+            <label style={{ display: "grid", gap: 6 }}>
+              <span>Overtime / hr</span>
+              <Input
+                value={form.overtimeRate}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    overtimeRate: event.target.value.replace(/[^\d.]/g, ""),
+                  }))
+                }
+                placeholder="1000"
+              />
+            </label>
+          </div>
           <label style={{ display: "grid", gap: 6 }}>
             <span>Description</span>
             <Textarea

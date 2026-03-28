@@ -22,7 +22,10 @@ const variantCreateSchema = z.object({
   name: z.string().min(2),
   capacityTons: z.coerce.number().positive().optional(),
   description: z.string().max(500).optional(),
-  isActive: z.boolean().optional()
+  isActive: z.boolean().optional(),
+  baseCharge: z.coerce.number().positive().optional(),
+  baseHours: z.coerce.number().positive().optional(),
+  overtimeRate: z.coerce.number().positive().optional()
 });
 
 const variantUpdateSchema = variantCreateSchema.partial();
@@ -85,7 +88,9 @@ router.get(
   "/variants",
   asyncHandler(async (_req, res) => {
     const rows = await sql`
-      SELECT id, name, capacity_tons, description, is_active, created_at, updated_at
+      SELECT id, name, capacity_tons, description, is_active,
+             base_charge, base_hours, overtime_rate,
+             created_at, updated_at
       FROM crane_variants
       ORDER BY created_at DESC
       LIMIT 500
@@ -99,14 +104,19 @@ router.post(
   asyncHandler(async (req, res) => {
     const payload = variantCreateSchema.parse(req.body);
     const rows = await sql`
-      INSERT INTO crane_variants (name, capacity_tons, description, is_active)
+      INSERT INTO crane_variants (name, capacity_tons, description, is_active, base_charge, base_hours, overtime_rate)
       VALUES (
         ${payload.name},
         ${payload.capacityTons || null},
         ${payload.description || null},
-        ${payload.isActive ?? true}
+        ${payload.isActive ?? true},
+        ${payload.baseCharge || null},
+        ${payload.baseHours || null},
+        ${payload.overtimeRate || null}
       )
-      RETURNING id, name, capacity_tons, description, is_active, created_at, updated_at
+      RETURNING id, name, capacity_tons, description, is_active,
+                base_charge, base_hours, overtime_rate,
+                created_at, updated_at
     `;
     res.status(201).json({ success: true, data: rows[0] });
   })
@@ -124,9 +134,14 @@ router.patch(
         capacity_tons = COALESCE(${payload.capacityTons || null}, capacity_tons),
         description = COALESCE(${payload.description || null}, description),
         is_active = COALESCE(${payload.isActive ?? null}, is_active),
+        base_charge = COALESCE(${payload.baseCharge || null}, base_charge),
+        base_hours = COALESCE(${payload.baseHours || null}, base_hours),
+        overtime_rate = COALESCE(${payload.overtimeRate || null}, overtime_rate),
         updated_at = now()
       WHERE id = ${variantId}
-      RETURNING id, name, capacity_tons, description, is_active, created_at, updated_at
+      RETURNING id, name, capacity_tons, description, is_active,
+                base_charge, base_hours, overtime_rate,
+                created_at, updated_at
     `;
     if (!rows.length) throw new HttpError(404, "Variant not found");
     res.json({ success: true, data: rows[0] });
