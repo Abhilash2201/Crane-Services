@@ -2,6 +2,12 @@ import { MessageSquare, Phone, ShieldCheck, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import styled from "styled-components";
+import { MapContainer, Marker, TileLayer, useMap } from "react-leaflet";
+import "leaflet/dist/leaflet.css";
+import L from "leaflet";
+import marker2x from "leaflet/dist/images/marker-icon-2x.png";
+import marker from "leaflet/dist/images/marker-icon.png";
+import markerShadow from "leaflet/dist/images/marker-shadow.png";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
@@ -9,6 +15,16 @@ import { createRealtimeSocket } from "../lib/realtime";
 import { api } from "../lib/api";
 
 const Wrap = styled.div`display: grid; gap: 14px; @media (min-width: 950px) { grid-template-columns: 1.2fr 0.8fr; }`;
+const MapWrap = styled.div`height: 260px; border-radius: 14px; border: 1px solid #E2E8F0; overflow: hidden;`;
+const driverIcon = L.icon({
+  iconRetinaUrl: marker2x,
+  iconUrl: marker,
+  shadowUrl: markerShadow,
+  iconSize: [25, 41],
+  iconAnchor: [12, 41],
+  popupAnchor: [1, -34],
+  shadowSize: [41, 41],
+});
 export function TrackingPage() {
   const { id } = useParams();
   const [payload, setPayload] = useState<any>(null);
@@ -19,29 +35,32 @@ export function TrackingPage() {
     captured_at: string;
   }>(null);
   const [liveStatus, setLiveStatus] = useState<string | null>(null);
+  const [autoCenter, setAutoCenter] = useState(true);
 
   useEffect(() => {
-    const socket = createRealtimeSocket();
     const jobId = payload?.job?.id;
-    if (jobId) socket.emit("join:job", jobId);
+    if (!jobId) return;
+
+    const socket = createRealtimeSocket();
+    socket.emit("join:job", jobId);
 
     socket.on("tracking:updated", (event) => {
       if (!event?.job_id) return;
-      if (jobId && event.job_id !== jobId) return;
+      if (event.job_id !== jobId) return;
       setLastTracking(event);
     });
 
     socket.on("job:status_changed", (event) => {
       if (!event?.requestId && !event?.jobId) return;
-      if (jobId && event.jobId !== jobId) return;
+      if (event.jobId && event.jobId !== jobId) return;
       setLiveStatus(event.status);
     });
 
     return () => {
-      if (jobId) socket.emit("leave:job", jobId);
+      socket.emit("leave:job", jobId);
       socket.disconnect();
     };
-  }, [payload?.job?.id]);
+  }, [payload?.job?.id, payload?.request?.id]);
 
   useEffect(() => {
     if (!id) return;
@@ -61,6 +80,22 @@ export function TrackingPage() {
   );
   const canCancel = resolvedStatus === "accepted" || resolvedStatus === "assigned";
   const canComplete = resolvedStatus === "working";
+  const mapCenter = useMemo<[number, number]>(
+    () =>
+      lastTracking
+        ? [lastTracking.latitude, lastTracking.longitude]
+        : [12.9716, 77.5946],
+    [lastTracking],
+  );
+
+  const FlyToPosition = ({ center }: { center: [number, number] }) => {
+    const map = useMap();
+    useEffect(() => {
+      if (!autoCenter) return;
+      map.setView(center, map.getZoom(), { animate: true });
+    }, [center, map]);
+    return null;
+  };
 
   return (
     <Wrap>
@@ -88,13 +123,37 @@ export function TrackingPage() {
         </div>
         <div>
           <h3 style={{ marginBottom: 8 }}>Live Map Preview</h3>
-          <div style={{ height: 260, borderRadius: 14, border: "1px solid #E2E8F0", background: "linear-gradient(130deg,#dbeafe,#e2e8f0)", display: "grid", placeItems: "center", padding: 12, textAlign: "center" }}>
+          <MapWrap>
+            <MapContainer
+              center={mapCenter}
+              zoom={15}
+              style={{ height: "100%", width: "100%" }}
+              scrollWheelZoom={false}
+              whenReady={(map) => {
+                map.target.on("dragstart", () => setAutoCenter(false));
+                map.target.on("zoomstart", () => setAutoCenter(false));
+              }}
+            >
+              <TileLayer
+                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              />
+              <FlyToPosition center={mapCenter} />
+              {lastTracking ? (
+                <Marker
+                  position={[lastTracking.latitude, lastTracking.longitude]}
+                  icon={driverIcon}
+                />
+              ) : null}
+            </MapContainer>
+          </MapWrap>
+          <div style={{ marginTop: 8, color: "#475569" }}>
             {lastTracking ? (
-              <div>
+              <>
                 <div>Live coordinates</div>
                 <strong>{lastTracking.latitude.toFixed(5)}, {lastTracking.longitude.toFixed(5)}</strong>
-                <div style={{ color: "#475569", marginTop: 4 }}>Updated: {new Date(lastTracking.captured_at).toLocaleTimeString()}</div>
-              </div>
+                <div style={{ marginTop: 4 }}>Updated: {new Date(lastTracking.captured_at).toLocaleTimeString()}</div>
+              </>
             ) : (
               "Waiting for driver tracking signal"
             )}
