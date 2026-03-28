@@ -21,6 +21,7 @@ import {
 } from "react-router-dom";
 import styled from "styled-components";
 import { createRealtimeSocket } from "./lib/realtime";
+import { api, authStore } from "./lib/api";
 
 type JobStatus = "new" | "assigned" | "in_progress" | "completed" | "rejected";
 type Job = {
@@ -42,63 +43,11 @@ type Job = {
   proofCount: number;
 };
 
-const seedJobs: Job[] = [
-  {
-    id: "REQ-BLR-9910",
-    requestId: "REQ-BLR-9910",
-    variant: "50T Rough Terrain",
-    capacity: "50T",
-    customer: "Brigade Infra Projects",
-    mobile: "+91 98100 77120",
-    location: "EPIP, Whitefield, Bengaluru",
-    distanceKm: 2.4,
-    schedule: "03 Mar 2026, 09:30 AM",
-    load: "22-ton DG set rooftop lift",
-    amount: 3200,
-    status: "new",
-    reached: false,
-    started: false,
-    proofCount: 0,
-  },
-  {
-    id: "REQ-BLR-8812",
-    requestId: "REQ-BLR-8812",
-    variant: "25T Mobile",
-    capacity: "25T",
-    customer: "Kaveri Structures",
-    mobile: "+91 98866 22011",
-    location: "Hebbal, Bengaluru",
-    distanceKm: 6.8,
-    schedule: "03 Mar 2026, 01:00 PM",
-    load: "Steel frame positioning",
-    amount: 2600,
-    status: "assigned",
-    reached: true,
-    started: false,
-    proofCount: 0,
-  },
-  {
-    id: "REQ-BLR-7701",
-    requestId: "REQ-BLR-7701",
-    variant: "Tower Crane",
-    capacity: "80T",
-    customer: "SRS Buildwell",
-    mobile: "+91 93456 77102",
-    location: "Peenya, Bengaluru",
-    distanceKm: 9.2,
-    schedule: "02 Mar 2026, 08:30 AM",
-    load: "Precast slab placement",
-    amount: 4500,
-    status: "completed",
-    reached: true,
-    started: true,
-    proofCount: 3,
-  },
-];
+const seedJobs: Job[] = [];
 
 type DriverState = {
   isLoggedIn: boolean;
-  phone: string;
+  user: { id?: string; name?: string; email?: string; phone?: string } | null;
   online: boolean;
   dismissedInstall: boolean;
   jobs: Job[];
@@ -112,7 +61,7 @@ function loadState(): DriverState {
     if (!raw) {
       return {
         isLoggedIn: false,
-        phone: "",
+        user: null,
         online: true,
         dismissedInstall: false,
         jobs: seedJobs,
@@ -123,7 +72,7 @@ function loadState(): DriverState {
   } catch {
     return {
       isLoggedIn: false,
-      phone: "",
+      user: null,
       online: true,
       dismissedInstall: false,
       jobs: seedJobs,
@@ -155,8 +104,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token") || undefined;
-    const socket = createRealtimeSocket(token);
+    const socket = createRealtimeSocket();
     socketRef.current = socket;
 
     socket.on("dispatch:job_assigned", (payload) => {
@@ -258,44 +206,100 @@ export default function App() {
     return () => clearInterval(timer);
   }, [derived.active, state.online, isOffline]);
 
+  const mapStatus = (status: string): JobStatus => {
+    const statusMap: Record<string, JobStatus> = {
+      assigned: "assigned",
+      en_route: "assigned",
+      working: "in_progress",
+      completed: "completed",
+      cancelled: "rejected",
+    };
+    return statusMap[status] || "assigned";
+  };
+
+  const loadJobs = () => {
+    api
+      .get("/driver/jobs")
+      .then((res) => {
+        const rows = res.data?.data || [];
+        const mapped: Job[] = rows.map((job: any) => ({
+          id: job.request_id || job.id,
+          requestId: job.request_id,
+          jobId: job.id,
+          variant: job.crane_registration || "Assigned Crane",
+          capacity: "NA",
+          customer: "Customer",
+          mobile: "N/A",
+          location: job.pickup_address || "Location pending",
+          distanceKm: 0,
+          schedule: job.created_at
+            ? new Date(job.created_at).toLocaleString()
+            : new Date().toLocaleString(),
+          load: "N/A",
+          amount: 0,
+          status: mapStatus(job.status),
+          reached: job.status === "en_route" || job.status === "working",
+          started: job.status === "working" || job.status === "completed",
+          proofCount: 0,
+        }));
+        setState((s) => ({ ...s, jobs: mapped }));
+      })
+      .catch(() => {
+        // Keep existing jobs on failure.
+      });
+  };
+
+  const updateJobStatus = (jobId?: string, status?: string) => {
+    if (!jobId || !status) return;
+    api.patch(`/driver/jobs/${jobId}/status`, { status }).catch(() => {});
+  };
+
   const actions = {
-    login: (phone: string) =>
-      setState((s) => ({ ...s, isLoggedIn: true, phone })),
-    logout: () =>
+    login: (auth: { user: any }) =>
+      setState((s) => ({ ...s, isLoggedIn: true, user: auth.user })),
+    logout: () => {
+      authStore.write(null);
       setState((s) => ({
         ...s,
         isLoggedIn: false,
-        phone: "",
+        user: null,
         online: false,
-      })),
+      }));
+    },
     toggleOnline: () => setState((s) => ({ ...s, online: !s.online })),
     dismissInstall: () => setState((s) => ({ ...s, dismissedInstall: true })),
-    acceptJob: (jobId: string) =>
+    acceptJob: (jobId: string, internalJobId?: string) => {
+      updateJobStatus(internalJobId, "en_route");
       setState((s) => ({
         ...s,
         jobs: s.jobs.map((j) =>
-          j.id === jobId ? { ...j, status: "assigned" } : j,
+          j.id === jobId ? { ...j, status: "assigned", reached: true } : j,
         ),
-      })),
-    rejectJob: (jobId: string) =>
+      }));
+    },
+    rejectJob: (jobId: string, internalJobId?: string) => {
+      updateJobStatus(internalJobId, "cancelled");
       setState((s) => ({
         ...s,
         jobs: s.jobs.map((j) =>
           j.id === jobId ? { ...j, status: "rejected" } : j,
         ),
-      })),
+      }));
+    },
     markReached: (jobId: string) =>
       setState((s) => ({
         ...s,
         jobs: s.jobs.map((j) => (j.id === jobId ? { ...j, reached: true } : j)),
       })),
-    workStarted: (jobId: string) =>
+    workStarted: (jobId: string, internalJobId?: string) => {
+      updateJobStatus(internalJobId, "working");
       setState((s) => ({
         ...s,
         jobs: s.jobs.map((j) =>
           j.id === jobId ? { ...j, started: true, status: "in_progress" } : j,
         ),
-      })),
+      }));
+    },
     uploadProof: (jobId: string) =>
       setState((s) => ({
         ...s,
@@ -303,13 +307,15 @@ export default function App() {
           j.id === jobId ? { ...j, proofCount: j.proofCount + 1 } : j,
         ),
       })),
-    complete: (jobId: string) =>
+    complete: (jobId: string, internalJobId?: string) => {
+      updateJobStatus(internalJobId, "completed");
       setState((s) => ({
         ...s,
         jobs: s.jobs.map((j) =>
           j.id === jobId ? { ...j, status: "completed" } : j,
         ),
-      })),
+      }));
+    },
   };
 
   return (
@@ -321,7 +327,12 @@ export default function App() {
             state.isLoggedIn ? (
               <Navigate to="/home" replace />
             ) : (
-              <LoginScreen onLogin={actions.login} />
+              <LoginScreen
+                onLogin={(auth) => {
+                  actions.login(auth);
+                  loadJobs();
+                }}
+              />
             )
           }
         />
@@ -363,12 +374,12 @@ function AppShell({
     logout: () => void;
     toggleOnline: () => void;
     dismissInstall: () => void;
-    acceptJob: (jobId: string) => void;
-    rejectJob: (jobId: string) => void;
+    acceptJob: (jobId: string, internalJobId?: string) => void;
+    rejectJob: (jobId: string, internalJobId?: string) => void;
     markReached: (jobId: string) => void;
-    workStarted: (jobId: string) => void;
+    workStarted: (jobId: string, internalJobId?: string) => void;
     uploadProof: (jobId: string) => void;
-    complete: (jobId: string) => void;
+    complete: (jobId: string, internalJobId?: string) => void;
   };
 }) {
   return (
@@ -377,7 +388,7 @@ function AppShell({
         path="/home"
         element={
           <HomeScreen
-            phone={state.phone}
+            phone={state.user?.phone || ""}
             online={state.online}
             isOffline={isOffline}
             active={derived.active}
@@ -429,7 +440,7 @@ function AppShell({
         path="/profile"
         element={
           <ProfileScreen
-            phone={state.phone}
+            phone={state.user?.phone || ""}
             earnings={derived.todaysEarnings}
             completed={derived.completed.length}
             onLogout={actions.logout}
@@ -441,74 +452,59 @@ function AppShell({
   );
 }
 
-function LoginScreen({ onLogin }: { onLogin: (phone: string) => void }) {
-  const [phone, setPhone] = useState("9886622410");
-  const [step, setStep] = useState<"phone" | "otp">("phone");
-  const [otp, setOtp] = useState(["", "", "", "", "", ""]);
-  const [generatedOtp, setGeneratedOtp] = useState("427591");
+function LoginScreen({ onLogin }: { onLogin: (auth: { user: any }) => void }) {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
-
-  const sendOtp = () => {
-    if (!/^[6-9]\d{9}$/.test(phone)) {
-      setMessage("Enter a valid 10-digit Indian mobile number.");
-      return;
-    }
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    setGeneratedOtp(code);
-    setStep("otp");
-    setMessage(`Demo OTP: ${code}`);
-  };
-
-  const verify = () => {
-    if (otp.join("") !== generatedOtp) {
-      setMessage("Invalid OTP. Try again.");
-      return;
-    }
-    onLogin(phone);
-    navigate("/home");
-  };
 
   return (
     <SafeArea>
       <h2 style={{ margin: "2px 0 0", color: "#0A2540" }}>Driver Login</h2>
       <small style={{ color: "#64748B" }}>CraneHub Operator Access</small>
       <Card>
-        {step === "phone" ? (
-          <>
-            <label>Mobile Number</label>
-            <Input
-              value={phone}
-              onChange={(e) => setPhone(e.target.value.replace(/\D/g, ""))}
-            />
-            <Action style={{ marginTop: 10 }} onClick={sendOtp}>
-              Send OTP
-            </Action>
-          </>
-        ) : (
-          <>
-            <label>Enter 6-digit OTP</label>
-            <Grid6>
-              {otp.map((digit, index) => (
-                <Input
-                  key={index}
-                  value={digit}
-                  onChange={(e) => {
-                    const clean = e.target.value.replace(/\D/g, "").slice(0, 1);
-                    setOtp((prev) => {
-                      const next = [...prev];
-                      next[index] = clean;
-                      return next;
-                    });
-                  }}
-                />
-              ))}
-            </Grid6>
-            <Action style={{ marginTop: 10 }} onClick={verify}>
-              Verify
-            </Action>
-          </>
-        )}
+        <label>Email</label>
+        <Input
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+        />
+        <label>Password</label>
+        <Input
+          type="password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <Action
+          style={{ marginTop: 10 }}
+          onClick={() => {
+            setMessage("");
+            if (!email.trim()) {
+              setMessage("Enter your email.");
+              return;
+            }
+            if (!password || password.length < 6) {
+              setMessage("Password must be at least 6 characters.");
+              return;
+            }
+            api
+              .post("/auth/login", {
+                email: email.trim().toLowerCase(),
+                password,
+              })
+              .then((res) => {
+                authStore.write(res.data?.data || null);
+                onLogin(res.data?.data || {});
+                navigate("/home");
+              })
+              .catch((err) =>
+                setMessage(
+                  err?.response?.data?.message || "Login failed. Try again.",
+                ),
+              );
+          }}
+        >
+          Login
+        </Action>
       </Card>
       <small
         style={{ color: message.includes("Invalid") ? "#b91c1c" : "#334155" }}
@@ -555,7 +551,7 @@ function HomeScreen({
         <Row>
           <div>
             <strong style={{ color: "#0A2540" }}>
-              Hi, {phone.slice(-4)} Driver
+              Hi, {phone ? phone.slice(-4) : "Driver"}
             </strong>
             <p style={{ margin: 0, color: "#64748B", fontSize: 13 }}>
               Bengaluru Central
@@ -604,8 +600,8 @@ function JobAlertScreen({
   online: boolean;
   isOffline: boolean;
   job?: Job;
-  onAccept: (jobId: string) => void;
-  onReject: (jobId: string) => void;
+  onAccept: (jobId: string, internalJobId?: string) => void;
+  onReject: (jobId: string, internalJobId?: string) => void;
 }) {
   const navigate = useNavigate();
   if (!job) {
@@ -649,7 +645,7 @@ function JobAlertScreen({
           $tone="success"
           disabled={disabled}
           onClick={() => {
-            onAccept(job.id);
+            onAccept(job.id, job.jobId);
             navigate("/active-job");
           }}
         >
@@ -659,7 +655,7 @@ function JobAlertScreen({
           $tone="danger"
           disabled={disabled}
           onClick={() => {
-            onReject(job.id);
+            onReject(job.id, job.jobId);
             navigate("/home");
           }}
         >
@@ -688,9 +684,9 @@ function ActiveJobScreen({
   isOffline: boolean;
   job?: Job;
   onReached: (jobId: string) => void;
-  onStarted: (jobId: string) => void;
+  onStarted: (jobId: string, internalJobId?: string) => void;
   onUpload: (jobId: string) => void;
-  onComplete: (jobId: string) => void;
+  onComplete: (jobId: string, internalJobId?: string) => void;
 }) {
   const [seconds, setSeconds] = useState(6140);
   useEffect(() => {
@@ -741,7 +737,7 @@ function ActiveJobScreen({
         <Action disabled={disabled} onClick={() => onReached(job.id)}>
           I&apos;ve Reached Site
         </Action>
-        <Action disabled={disabled} onClick={() => onStarted(job.id)}>
+        <Action disabled={disabled} onClick={() => onStarted(job.id, job.jobId)}>
           Work Started
         </Action>
         <Action disabled={disabled} onClick={() => onUpload(job.id)}>
@@ -750,7 +746,7 @@ function ActiveJobScreen({
         <Action
           $tone="danger"
           disabled={disabled}
-          onClick={() => onComplete(job.id)}
+          onClick={() => onComplete(job.id, job.jobId)}
         >
           Job Completed
         </Action>
@@ -860,7 +856,7 @@ function ProfileScreen({
             </div>
           </Row>
           <p style={{ margin: "8px 0 0" }}>
-            <b>Phone:</b> +91 {phone}
+            <b>Phone:</b> {phone || "—"}
           </p>
           <p style={{ margin: "4px 0 0" }}>
             <b>Assigned crane:</b> 50T Rough Terrain | KA-53-MR-2281
@@ -1067,12 +1063,6 @@ const Input = styled.input`
   border: 1px solid #e2e8f0;
   border-radius: 12px;
   padding: 0 10px;
-`;
-
-const Grid6 = styled.div`
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 6px;
 `;
 
 const NotifyBanner = styled.div`

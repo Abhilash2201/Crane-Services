@@ -107,6 +107,45 @@ export function DispatchPage() {
       </p>
       {loading ? <small style={{ color: "#64748B" }}>Loading...</small> : null}
       {error ? <small style={{ color: "#DC2626" }}>{error}</small> : null}
+      {!loading && !requests.length ? (
+        <Card>
+          <CardContent style={{ display: "grid", gap: 6 }}>
+            <strong>No accepted requests yet</strong>
+            <small style={{ color: "#64748B" }}>
+              Accept a request from Live Requests to dispatch it.
+            </small>
+            <Link to="/live-requests">
+              <Button variant="outline">Go to Live Requests</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      ) : null}
+      {!loading && !drivers.length ? (
+        <Card>
+          <CardContent style={{ display: "grid", gap: 6 }}>
+            <strong>No drivers linked</strong>
+            <small style={{ color: "#64748B" }}>
+              Add your drivers before dispatching jobs.
+            </small>
+            <Link to="/drivers">
+              <Button variant="outline">Add Drivers</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      ) : null}
+      {!loading && !fleet.length ? (
+        <Card>
+          <CardContent style={{ display: "grid", gap: 6 }}>
+            <strong>No fleet added</strong>
+            <small style={{ color: "#64748B" }}>
+              Add cranes to your fleet to assign to jobs.
+            </small>
+            <Link to="/fleet">
+              <Button variant="outline">Add Fleet</Button>
+            </Link>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {events.length ? (
         <Card>
