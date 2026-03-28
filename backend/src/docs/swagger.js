@@ -744,6 +744,69 @@ const options = {
           responses: { 200: { description: "User updated" } }
         }
       },
+      "/api/admin/variants": {
+        get: {
+          tags: ["Admin"],
+          security: [{ bearerAuth: [] }],
+          summary: "List crane variants",
+          responses: { 200: { description: "Variants" } }
+        },
+        post: {
+          tags: ["Admin"],
+          security: [{ bearerAuth: [] }],
+          summary: "Create crane variant",
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  required: ["name"],
+                  properties: {
+                    name: { type: "string" },
+                    capacityTons: { type: "number" },
+                    description: { type: "string" },
+                    isActive: { type: "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          responses: { 201: { description: "Variant created" } }
+        }
+      },
+      "/api/admin/variants/{variantId}": {
+        patch: {
+          tags: ["Admin"],
+          security: [{ bearerAuth: [] }],
+          summary: "Update crane variant",
+          parameters: [{ in: "path", name: "variantId", required: true, schema: { type: "string", format: "uuid" } }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    capacityTons: { type: "number" },
+                    description: { type: "string" },
+                    isActive: { type: "boolean" }
+                  }
+                }
+              }
+            }
+          },
+          responses: { 200: { description: "Variant updated" }, 404: { description: "Not found" } }
+        },
+        delete: {
+          tags: ["Admin"],
+          security: [{ bearerAuth: [] }],
+          summary: "Delete crane variant",
+          parameters: [{ in: "path", name: "variantId", required: true, schema: { type: "string", format: "uuid" } }],
+          responses: { 200: { description: "Deleted" }, 404: { description: "Not found" } }
+        }
+      },
       "/api/admin/requests": {
         get: {
           tags: ["Admin"],
@@ -767,6 +830,14 @@ const options = {
           summary: "Tracking history for a job",
           parameters: [{ in: "path", name: "jobId", required: true, schema: { type: "string", format: "uuid" } }],
           responses: { 200: { description: "Tracking events" } }
+        }
+      },
+      "/api/admin/analytics": {
+        get: {
+          tags: ["Admin"],
+          security: [{ bearerAuth: [] }],
+          summary: "Admin analytics",
+          responses: { 200: { description: "Analytics data" } }
         }
       },
       "/api/payments/intent": {

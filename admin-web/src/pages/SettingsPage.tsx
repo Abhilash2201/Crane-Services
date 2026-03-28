@@ -175,8 +175,13 @@ export function SettingsPage() {
           </div>
 
           <div style={{ display: "flex", gap: 8 }}>
-            <Button>Save Configuration</Button>
-            <Button variant="outline">Discard Changes</Button>
+            <Button disabled>Save Configuration</Button>
+            <Button variant="outline" disabled>
+              Discard Changes
+            </Button>
+            <small style={{ color: "#64748B" }}>
+              Other settings are placeholders for now.
+            </small>
           </div>
         </div>
       </CardContent>

@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
 import {
   Card,
@@ -11,12 +11,11 @@ import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
 import { Switch } from "../components/ui/switch";
 import { Button } from "../components/ui/button";
-import { Badge } from "../components/ui/badge";
-import { users } from "../data/mockData";
+import { api } from "../lib/api";
 
 const Filters = styled.div`
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
+  grid-template-columns: 2fr 1fr;
   gap: 10px;
   margin-bottom: 12px;
 
@@ -58,12 +57,26 @@ export function ManageUsersPage() {
   const [tab, setTab] = useState("Customers");
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All");
-  const [city, setCity] = useState("All");
-  const [verified, setVerified] = useState("All");
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api
+      .get("/admin/users")
+      .then((res) => setRows(res.data?.data || []))
+      .catch(() => setRows([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const roleMap: Record<string, string> = {
+    Customers: "customer",
+    "Crane Owners": "owner",
+    Drivers: "driver",
+  };
 
   const filtered = useMemo(() => {
-    return users
-      .filter((user) => user.role === tab)
+    return rows
+      .filter((user) => user.role === roleMap[tab])
       .filter((user) =>
         `${user.name} ${user.phone} ${user.email}`
           .toLowerCase()
@@ -73,18 +86,10 @@ export function ManageUsersPage() {
         status === "All"
           ? true
           : status === "Active"
-            ? user.status
-            : !user.status,
-      )
-      .filter((user) => (city === "All" ? true : user.city === city))
-      .filter((user) => {
-        if (verified === "All") {
-          return true;
-        }
-
-        return verified === "Verified" ? user.verified : !user.verified;
-      });
-  }, [tab, query, status, city, verified]);
+            ? user.is_active
+            : !user.is_active,
+      );
+  }, [rows, tab, query, status]);
 
   return (
     <Card>
@@ -92,11 +97,7 @@ export function ManageUsersPage() {
         <CardTitle>Manage Users</CardTitle>
       </CardHeader>
       <CardContent>
-        <Tabs
-          options={["Customers", "Crane Owners", "Drivers"]}
-          value={tab}
-          onChange={setTab}
-        />
+        <Tabs options={["Customers", "Crane Owners", "Drivers"]} value={tab} onChange={setTab} />
 
         <Filters style={{ marginTop: 12 }}>
           <Input
@@ -112,33 +113,16 @@ export function ManageUsersPage() {
             <option>Active</option>
             <option>Inactive</option>
           </Select>
-          <Select
-            value={city}
-            onChange={(event) => setCity(event.target.value)}
-          >
-            <option>All</option>
-            <option>Bengaluru</option>
-            <option>Mumbai</option>
-            <option>Delhi</option>
-          </Select>
-          <Select
-            value={verified}
-            onChange={(event) => setVerified(event.target.value)}
-          >
-            <option>All</option>
-            <option>Verified</option>
-            <option>Unverified</option>
-          </Select>
         </Filters>
 
         <div style={{ marginBottom: 10, display: "flex", gap: 8 }}>
-          <Button size="sm" variant="outline">
+          <Button size="sm" variant="outline" disabled>
             Bulk Activate
           </Button>
-          <Button size="sm" variant="outline">
+          <Button size="sm" variant="outline" disabled>
             Bulk Suspend
           </Button>
-          <Button size="sm" variant="danger">
+          <Button size="sm" variant="danger" disabled>
             Bulk Delete
           </Button>
         </div>
@@ -150,30 +134,57 @@ export function ManageUsersPage() {
                 <th>Name</th>
                 <th>Phone</th>
                 <th>Email</th>
-                <th>City</th>
                 <th>Joined Date</th>
-                <th>Verified</th>
                 <th>Status</th>
                 <th>Action</th>
               </tr>
             </thead>
             <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: 12 }}>
+                    Loading users...
+                  </td>
+                </tr>
+              ) : null}
+              {!loading && filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: 12 }}>
+                    No users found.
+                  </td>
+                </tr>
+              ) : null}
               {filtered.map((user) => (
-                <tr key={user.email}>
+                <tr key={user.id}>
                   <td>{user.name}</td>
                   <td>{user.phone}</td>
                   <td>{user.email}</td>
-                  <td>{user.city}</td>
-                  <td>{user.joined}</td>
                   <td>
-                    <Badge variant={user.verified ? "success" : "warning"}>
-                      {user.verified ? "Verified" : "Pending"}
-                    </Badge>
+                    {user.created_at
+                      ? new Date(user.created_at).toLocaleDateString()
+                      : "—"}
                   </td>
                   <td>
                     <Switch
-                      checked={user.status}
-                      onCheckedChange={() => undefined}
+                      checked={Boolean(user.is_active)}
+                      onCheckedChange={(next) => {
+                        api
+                          .patch(`/admin/users/${user.id}/status`, {
+                            isActive: next,
+                          })
+                          .then((res) => {
+                            const updated = res.data?.data;
+                            if (!updated) return;
+                            setRows((prev) =>
+                              prev.map((row) =>
+                                row.id === user.id
+                                  ? { ...row, is_active: updated.is_active }
+                                  : row,
+                              ),
+                            );
+                          })
+                          .catch(() => {});
+                      }}
                       ariaLabel="status"
                     />
                   </td>

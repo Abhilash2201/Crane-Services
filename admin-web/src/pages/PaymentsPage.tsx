@@ -1,18 +1,33 @@
+import { useEffect, useMemo, useState } from "react";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "../components/ui/card";
-import { payments } from "../data/mockData";
 import { Button } from "../components/ui/button";
+import { api } from "../lib/api";
 
-const currency = (value: number) => `?${value.toLocaleString("en-IN")}`;
+const currency = (value: number) => `₹${value.toLocaleString("en-IN")}`;
 
 export function PaymentsPage() {
-  const total = payments.reduce((sum, row) => sum + row.amount, 0);
-  const commission = payments.reduce((sum, row) => sum + row.commission, 0);
-  const payoutsPending = 245600;
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api
+      .get("/admin/payments")
+      .then((res) => setRows(res.data?.data || []))
+      .catch(() => setRows([]))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const totals = useMemo(() => {
+    const total = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    const commission = total * 0.15;
+    const payoutsPending = total - commission;
+    return { total, commission, payoutsPending };
+  }, [rows]);
 
   return (
     <div style={{ display: "grid", gap: 12 }}>
@@ -29,7 +44,7 @@ export function PaymentsPage() {
               Total Collected
             </div>
             <strong style={{ fontSize: 26, color: "#0A2540" }}>
-              {currency(total)}
+              {currency(totals.total)}
             </strong>
           </CardContent>
         </Card>
@@ -39,7 +54,7 @@ export function PaymentsPage() {
               Platform Commission (15%)
             </div>
             <strong style={{ fontSize: 26, color: "#0A2540" }}>
-              {currency(commission)}
+              {currency(totals.commission)}
             </strong>
           </CardContent>
         </Card>
@@ -49,7 +64,7 @@ export function PaymentsPage() {
               Owner Payouts Pending
             </div>
             <strong style={{ fontSize: 26, color: "#0A2540" }}>
-              {currency(payoutsPending)}
+              {currency(totals.payoutsPending)}
             </strong>
           </CardContent>
         </Card>
@@ -64,7 +79,7 @@ export function PaymentsPage() {
               alignItems: "center",
             }}
           >
-            <CardTitle>Completed Jobs & Commission Breakdown</CardTitle>
+            <CardTitle>Payments</CardTitle>
             <Button variant="outline">Export CSV</Button>
           </div>
         </CardHeader>
@@ -73,12 +88,13 @@ export function PaymentsPage() {
             <thead>
               <tr>
                 {[
-                  "Job ID",
+                  "Payment ID",
                   "Request ID",
-                  "City",
-                  "Gross Amount",
-                  "Commission (15%)",
-                  "Owner Payout",
+                  "Customer",
+                  "Owner",
+                  "Amount",
+                  "Status",
+                  "Created",
                 ].map((head) => (
                   <th
                     key={head}
@@ -96,37 +112,44 @@ export function PaymentsPage() {
               </tr>
             </thead>
             <tbody>
-              {payments.map((row) => (
+              {loading ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: 12 }}>
+                    Loading payments...
+                  </td>
+                </tr>
+              ) : null}
+              {!loading && rows.length === 0 ? (
+                <tr>
+                  <td colSpan={7} style={{ padding: 12 }}>
+                    No payments found.
+                  </td>
+                </tr>
+              ) : null}
+              {rows.map((row) => (
                 <tr key={row.id}>
-                  <td
-                    style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
-                  >
+                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
                     {row.id}
                   </td>
-                  <td
-                    style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
-                  >
-                    {row.requestId}
+                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                    {row.request_id || "—"}
                   </td>
-                  <td
-                    style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
-                  >
-                    {row.city}
+                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                    {row.customer_name || "—"}
                   </td>
-                  <td
-                    style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
-                  >
-                    {currency(row.amount)}
+                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                    {row.owner_name || "—"}
                   </td>
-                  <td
-                    style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
-                  >
-                    {currency(row.commission)}
+                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                    {currency(Number(row.amount || 0))}
                   </td>
-                  <td
-                    style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
-                  >
-                    {currency(row.ownerPayout)}
+                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                    {row.status || "—"}
+                  </td>
+                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                    {row.created_at
+                      ? new Date(row.created_at).toLocaleDateString()
+                      : "—"}
                   </td>
                 </tr>
               ))}

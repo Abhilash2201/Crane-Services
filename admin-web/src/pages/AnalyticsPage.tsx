@@ -1,146 +1,96 @@
+import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "../components/ui/card";
-import { BarChart, LineChart } from "../components/ui/charts";
-import {
-  cityRequestData,
-  ownerPerformance,
-  peakHourData,
-} from "../data/mockData";
-import { Input } from "../components/ui/input";
+import { api } from "../lib/api";
+
+type AnalyticsPayload = {
+  requestsLast7Days: { day: string; requests: number }[];
+  revenueLast7Days: { day: string; revenue: number }[];
+  requestsByStatus: { status: string; count: number }[];
+  topOwners: { id: string; name: string; total_jobs: number }[];
+};
 
 export function AnalyticsPage() {
+  const [data, setData] = useState<AnalyticsPayload | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api
+      .get("/admin/analytics")
+      .then((res) => setData(res.data?.data || null))
+      .catch(() => setData(null))
+      .finally(() => setLoading(false));
+  }, []);
+
   return (
-    <div style={{ display: "grid", gap: 12 }}>
+    <div style={{ display: "grid", gap: 14 }}>
+      <Card>
+        <CardHeader>
+          <CardTitle>Analytics Overview</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {loading ? (
+            <small style={{ color: "#64748B" }}>Loading analytics...</small>
+          ) : null}
+          {!loading && !data ? (
+            <small style={{ color: "#DC2626" }}>Unable to load analytics.</small>
+          ) : null}
+        </CardContent>
+      </Card>
+
       <div
         style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
+          display: "grid",
+          gap: 12,
+          gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
         }}
       >
-        <h2 style={{ margin: 0, color: "#0A2540" }}>Analytics & Reports</h2>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-          <Input type="date" defaultValue="2026-02-01" />
-          <Input type="date" defaultValue="2026-03-01" />
-        </div>
-      </div>
-
-      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "2fr 1fr" }}>
         <Card>
           <CardHeader>
-            <CardTitle>Requests by City (Map + Bar)</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div
-              style={{
-                display: "grid",
-                gap: 12,
-                gridTemplateColumns: "1fr 1fr",
-              }}
-            >
-              <div
-                style={{
-                  border: "1px dashed #CBD5E1",
-                  borderRadius: 10,
-                  display: "grid",
-                  placeItems: "center",
-                  minHeight: 220,
-                  background: "#F8FAFC",
-                  color: "#64748B",
-                }}
-              >
-                India Map Heat View (Mock)
-              </div>
-              <BarChart
-                data={cityRequestData.map((item) => ({
-                  label: item.city,
-                  value: item.requests,
-                }))}
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Peak Hours</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <LineChart
-              data={peakHourData.map((item) => ({
-                label: item.hour,
-                value: item.value,
-              }))}
-            />
-          </CardContent>
-        </Card>
-      </div>
-
-      <div style={{ display: "grid", gap: 12, gridTemplateColumns: "1fr 1fr" }}>
-        <Card>
-          <CardHeader>
-            <CardTitle>Owner Performance</CardTitle>
+            <CardTitle>Requests (Last 7 Days)</CardTitle>
           </CardHeader>
           <CardContent>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  <th
-                    style={{
-                      textAlign: "left",
-                      borderBottom: "1px solid #E2E8F0",
-                      padding: 8,
-                      fontSize: 12,
-                      color: "#64748B",
-                    }}
-                  >
-                    Owner
-                  </th>
-                  <th
-                    style={{
-                      textAlign: "left",
-                      borderBottom: "1px solid #E2E8F0",
-                      padding: 8,
-                      fontSize: 12,
-                      color: "#64748B",
-                    }}
-                  >
-                    Jobs
-                  </th>
-                  <th
-                    style={{
-                      textAlign: "left",
-                      borderBottom: "1px solid #E2E8F0",
-                      padding: 8,
-                      fontSize: 12,
-                      color: "#64748B",
-                    }}
-                  >
-                    Rating
-                  </th>
+                  <th style={{ textAlign: "left", padding: 6 }}>Day</th>
+                  <th style={{ textAlign: "left", padding: 6 }}>Requests</th>
                 </tr>
               </thead>
               <tbody>
-                {ownerPerformance.map((owner) => (
-                  <tr key={owner.owner}>
-                    <td
-                      style={{ padding: 8, borderBottom: "1px solid #E2E8F0" }}
-                    >
-                      {owner.owner}
-                    </td>
-                    <td
-                      style={{ padding: 8, borderBottom: "1px solid #E2E8F0" }}
-                    >
-                      {owner.jobs}
-                    </td>
-                    <td
-                      style={{ padding: 8, borderBottom: "1px solid #E2E8F0" }}
-                    >
-                      {owner.rating}
+                {data?.requestsLast7Days?.map((row) => (
+                  <tr key={row.day}>
+                    <td style={{ padding: 6 }}>{row.day}</td>
+                    <td style={{ padding: 6 }}>{row.requests}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Revenue (Last 7 Days)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left", padding: 6 }}>Day</th>
+                  <th style={{ textAlign: "left", padding: 6 }}>Revenue</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data?.revenueLast7Days?.map((row) => (
+                  <tr key={row.day}>
+                    <td style={{ padding: 6 }}>{row.day}</td>
+                    <td style={{ padding: 6 }}>
+                      ₹{Number(row.revenue || 0).toLocaleString("en-IN")}
                     </td>
                   </tr>
                 ))}
@@ -151,18 +101,49 @@ export function AnalyticsPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Driver Ratings Distribution</CardTitle>
+            <CardTitle>Requests by Status</CardTitle>
           </CardHeader>
           <CardContent>
-            <BarChart
-              data={[
-                { label: "5?", value: 182 },
-                { label: "4?", value: 94 },
-                { label: "3?", value: 26 },
-                { label: "2?", value: 9 },
-                { label: "1?", value: 3 },
-              ]}
-            />
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left", padding: 6 }}>Status</th>
+                  <th style={{ textAlign: "left", padding: 6 }}>Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data?.requestsByStatus?.map((row) => (
+                  <tr key={row.status}>
+                    <td style={{ padding: 6 }}>{row.status}</td>
+                    <td style={{ padding: 6 }}>{row.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Top Owners (Jobs)</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: "left", padding: 6 }}>Owner</th>
+                  <th style={{ textAlign: "left", padding: 6 }}>Jobs</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data?.topOwners?.map((row) => (
+                  <tr key={row.id}>
+                    <td style={{ padding: 6 }}>{row.name}</td>
+                    <td style={{ padding: 6 }}>{row.total_jobs}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </CardContent>
         </Card>
       </div>

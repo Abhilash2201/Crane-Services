@@ -12,11 +12,13 @@ import {
   Truck,
   Users,
 } from "lucide-react";
-import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Tooltip } from "../ui/tooltip";
+import { authStore } from "../../lib/api";
+import { useAuth } from "../../hooks/useAuth";
 
 const Shell = styled.div`
   display: grid;
@@ -169,6 +171,10 @@ export function AdminLayout({
   setCollapsed: (value: boolean) => void;
 }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const auth = useAuth();
+  const userName = auth?.user?.name || "Admin";
+  const userRole = auth?.user?.role || "admin";
 
   return (
     <Shell>
@@ -214,10 +220,20 @@ export function AdminLayout({
             <Button size="icon" variant="outline" aria-label="notifications">
               <Bell size={17} />
             </Button>
-            <Profile>
-              <strong>Aarav Sharma</strong>
-              <span>Super Admin</span>
+            <Profile onClick={() => navigate("/settings")}>
+              <strong>{userName}</strong>
+              <span>{userRole}</span>
             </Profile>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                authStore.write(null);
+                navigate("/login");
+              }}
+            >
+              Logout
+            </Button>
           </Right>
         </Topbar>
 

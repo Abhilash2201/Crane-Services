@@ -10,15 +10,24 @@ import { PaymentsPage } from "./pages/PaymentsPage";
 import { DisputesPage } from "./pages/DisputesPage";
 import { AnalyticsPage } from "./pages/AnalyticsPage";
 import { SettingsPage } from "./pages/SettingsPage";
+import { LoginPage } from "./pages/LoginPage";
+import { useAuth } from "./hooks/useAuth";
 
 function App() {
   const [collapsed, setCollapsed] = useState(false);
+  const auth = useAuth();
+  const isAdmin = auth?.user?.role === "admin";
 
   return (
     <Routes>
+      <Route path="/login" element={<LoginPage />} />
       <Route
         element={
-          <AdminLayout collapsed={collapsed} setCollapsed={setCollapsed} />
+          isAdmin ? (
+            <AdminLayout collapsed={collapsed} setCollapsed={setCollapsed} />
+          ) : (
+            <Navigate to="/login" replace />
+          )
         }
       >
         <Route path="/" element={<OverviewPage />} />
@@ -31,7 +40,10 @@ function App() {
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/settings" element={<SettingsPage />} />
       </Route>
-      <Route path="*" element={<Navigate to="/" replace />} />
+      <Route
+        path="*"
+        element={<Navigate to={isAdmin ? "/" : "/login"} replace />}
+      />
     </Routes>
   );
 }

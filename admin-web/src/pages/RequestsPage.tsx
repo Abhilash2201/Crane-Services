@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   Card,
   CardContent,
@@ -7,31 +7,30 @@ import {
 } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
-import { serviceRequests } from "../data/mockData";
 import { Badge } from "../components/ui/badge";
 import { Modal } from "../components/ui/modal";
 import { createRealtimeSocket } from "../lib/realtime";
+import { api, authStore } from "../lib/api";
 
 const statusVariant = (status: string) => {
-  if (status === "Completed") return "success" as const;
-  if (status === "Open") return "warning" as const;
-  if (status === "In Progress") return "info" as const;
-  if (status === "Confirmed") return "default" as const;
+  if (status === "completed") return "success" as const;
+  if (status === "pending") return "warning" as const;
+  if (status === "in_progress") return "info" as const;
+  if (status === "accepted") return "default" as const;
   return "warning" as const;
 };
 
 export function RequestsPage() {
   const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All");
-  const [variant, setVariant] = useState("All");
-  const [city, setCity] = useState("All");
-  const [selected, setSelected] = useState<
-    null | (typeof serviceRequests)[number]
-  >(null);
+  const [date, setDate] = useState("");
+  const [rows, setRows] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState<any | null>(null);
   const [liveEvents, setLiveEvents] = useState<string[]>([]);
 
   useEffect(() => {
-    const token = localStorage.getItem("access_token") || undefined;
+    const token = authStore.read()?.accessToken;
     const socket = createRealtimeSocket(token);
 
     socket.on("tracking:updated", (payload) => {
@@ -55,18 +54,31 @@ export function RequestsPage() {
     };
   }, []);
 
+  useEffect(() => {
+    api
+      .get("/admin/requests")
+      .then((res) => setRows(res.data?.data || []))
+      .catch(() => setRows([]))
+      .finally(() => setLoading(false));
+  }, []);
+
   const filtered = useMemo(
     () =>
-      serviceRequests
+      rows
         .filter((row) =>
-          `${row.id} ${row.customer}`
+          `${row.id} ${row.customer_name || ""}`
             .toLowerCase()
             .includes(query.toLowerCase()),
         )
-        .filter((row) => (status === "All" ? true : row.status === status))
-        .filter((row) => (variant === "All" ? true : row.variant === variant))
-        .filter((row) => (city === "All" ? true : row.location.includes(city))),
-    [query, status, variant, city],
+        .filter((row) =>
+          status === "All" ? true : row.status === status,
+        )
+        .filter((row) => {
+          if (!date) return true;
+          if (!row.created_at) return false;
+          return new Date(row.created_at).toISOString().slice(0, 10) === date;
+        }),
+    [rows, query, status, date],
   );
 
   return (
@@ -78,7 +90,7 @@ export function RequestsPage() {
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "2fr 1fr 1fr 1fr 1fr",
+            gridTemplateColumns: "2fr 1fr 1fr",
             gap: 8,
             marginBottom: 12,
           }}
@@ -93,33 +105,16 @@ export function RequestsPage() {
             onChange={(event) => setStatus(event.target.value)}
           >
             <option>All</option>
-            <option>Open</option>
-            <option>Accepted</option>
-            <option>Confirmed</option>
-            <option>In Progress</option>
-            <option>Completed</option>
+            <option value="pending">Pending</option>
+            <option value="accepted">Accepted</option>
+            <option value="in_progress">In Progress</option>
+            <option value="completed">Completed</option>
           </Select>
-          <Input type="date" />
-          <Select
-            value={variant}
-            onChange={(event) => setVariant(event.target.value)}
-          >
-            <option>All</option>
-            {Array.from(new Set(serviceRequests.map((row) => row.variant))).map(
-              (item) => (
-                <option key={item}>{item}</option>
-              ),
-            )}
-          </Select>
-          <Select
-            value={city}
-            onChange={(event) => setCity(event.target.value)}
-          >
-            <option>All</option>
-            <option>Bengaluru</option>
-            <option>Mumbai</option>
-            <option>Delhi</option>
-          </Select>
+          <Input
+            type="date"
+            value={date}
+            onChange={(event) => setDate(event.target.value)}
+          />
         </div>
 
         {liveEvents.length ? (
@@ -150,12 +145,10 @@ export function RequestsPage() {
                 {[
                   "Request ID",
                   "Customer",
-                  "Required Variant",
-                  "Location",
+                  "Pickup Address",
                   "Date/Time",
                   "Status",
                   "Accepted Owner",
-                  "Assigned Driver",
                 ].map((head) => (
                   <th
                     key={head}
@@ -173,6 +166,20 @@ export function RequestsPage() {
               </tr>
             </thead>
             <tbody>
+              {loading ? (
+                <tr>
+                  <td colSpan={6} style={{ padding: 12 }}>
+                    Loading requests...
+                  </td>
+                </tr>
+              ) : null}
+              {!loading && filtered.length === 0 ? (
+                <tr>
+                  <td colSpan={6} style={{ padding: 12 }}>
+                    No requests found.
+                  </td>
+                </tr>
+              ) : null}
               {filtered.map((row) => (
                 <tr
                   key={row.id}
@@ -187,22 +194,19 @@ export function RequestsPage() {
                   <td
                     style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
                   >
-                    {row.customer}
+                    {row.customer_name || "—"}
                   </td>
                   <td
                     style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
                   >
-                    {row.variant}
+                    {row.pickup_address || "—"}
                   </td>
                   <td
                     style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
                   >
-                    {row.location}
-                  </td>
-                  <td
-                    style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
-                  >
-                    {row.time}
+                    {row.created_at
+                      ? new Date(row.created_at).toLocaleString()
+                      : "—"}
                   </td>
                   <td
                     style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
@@ -214,12 +218,7 @@ export function RequestsPage() {
                   <td
                     style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
                   >
-                    {row.owner}
-                  </td>
-                  <td
-                    style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
-                  >
-                    {row.driver}
+                    {row.owner_name || "—"}
                   </td>
                 </tr>
               ))}
@@ -235,17 +234,19 @@ export function RequestsPage() {
           {selected && (
             <div style={{ display: "grid", gap: 12 }}>
               <strong style={{ color: "#0A2540" }}>
-                {selected.id} - {selected.customer}
+                {selected.id} - {selected.customer_name || "Customer"}
               </strong>
               <div style={{ color: "#334155", fontSize: 14 }}>
-                Variant: {selected.variant}
+                Required Capacity:{" "}
+                {selected.required_capacity_tons
+                  ? `${selected.required_capacity_tons} tons`
+                  : "—"}
               </div>
               <div style={{ color: "#334155", fontSize: 14 }}>
-                Location: {selected.location}
+                Pickup: {selected.pickup_address || "—"}
               </div>
               <div style={{ color: "#334155", fontSize: 14 }}>
-                Timeline: Opened 08:45 AM - Owner Accepted 09:03 AM - Driver
-                Assigned 09:08 AM - {selected.status}
+                Status: {selected.status}
               </div>
               <div
                 style={{
@@ -258,7 +259,7 @@ export function RequestsPage() {
                   background: "#F8FAFC",
                 }}
               >
-                Map Preview - {selected.location}
+                Map Preview - {selected.pickup_address || "Location"}
               </div>
             </div>
           )}

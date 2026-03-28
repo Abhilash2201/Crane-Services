@@ -18,6 +18,15 @@ const pricingSchema = z.object({
   overtimeRate: z.coerce.number().positive()
 });
 
+const variantCreateSchema = z.object({
+  name: z.string().min(2),
+  capacityTons: z.coerce.number().positive().optional(),
+  description: z.string().max(500).optional(),
+  isActive: z.boolean().optional()
+});
+
+const variantUpdateSchema = variantCreateSchema.partial();
+
 router.use(requireAuth, authorize("admin"));
 
 router.get(
@@ -69,6 +78,72 @@ router.put(
       RETURNING id, base_charge, base_hours, overtime_rate, created_at, updated_at
     `;
     res.json({ success: true, data: rows[0] });
+  })
+);
+
+router.get(
+  "/variants",
+  asyncHandler(async (_req, res) => {
+    const rows = await sql`
+      SELECT id, name, capacity_tons, description, is_active, created_at, updated_at
+      FROM crane_variants
+      ORDER BY created_at DESC
+      LIMIT 500
+    `;
+    res.json({ success: true, data: rows });
+  })
+);
+
+router.post(
+  "/variants",
+  asyncHandler(async (req, res) => {
+    const payload = variantCreateSchema.parse(req.body);
+    const rows = await sql`
+      INSERT INTO crane_variants (name, capacity_tons, description, is_active)
+      VALUES (
+        ${payload.name},
+        ${payload.capacityTons || null},
+        ${payload.description || null},
+        ${payload.isActive ?? true}
+      )
+      RETURNING id, name, capacity_tons, description, is_active, created_at, updated_at
+    `;
+    res.status(201).json({ success: true, data: rows[0] });
+  })
+);
+
+router.patch(
+  "/variants/:variantId",
+  asyncHandler(async (req, res) => {
+    const payload = variantUpdateSchema.parse(req.body);
+    const { variantId } = req.params;
+    const rows = await sql`
+      UPDATE crane_variants
+      SET
+        name = COALESCE(${payload.name || null}, name),
+        capacity_tons = COALESCE(${payload.capacityTons || null}, capacity_tons),
+        description = COALESCE(${payload.description || null}, description),
+        is_active = COALESCE(${payload.isActive ?? null}, is_active),
+        updated_at = now()
+      WHERE id = ${variantId}
+      RETURNING id, name, capacity_tons, description, is_active, created_at, updated_at
+    `;
+    if (!rows.length) throw new HttpError(404, "Variant not found");
+    res.json({ success: true, data: rows[0] });
+  })
+);
+
+router.delete(
+  "/variants/:variantId",
+  asyncHandler(async (req, res) => {
+    const { variantId } = req.params;
+    const rows = await sql`
+      DELETE FROM crane_variants
+      WHERE id = ${variantId}
+      RETURNING id
+    `;
+    if (!rows.length) throw new HttpError(404, "Variant not found");
+    res.json({ success: true });
   })
 );
 
@@ -146,6 +221,58 @@ router.get(
       LIMIT 1000
     `;
     res.json({ success: true, data: rows });
+  })
+);
+
+router.get(
+  "/analytics",
+  asyncHandler(async (_req, res) => {
+    const last7Days = await sql`
+      SELECT
+        to_char(date_trunc('day', r.created_at), 'YYYY-MM-DD') AS day,
+        COUNT(*)::INT AS requests
+      FROM requests r
+      WHERE r.created_at >= now() - interval '7 days'
+      GROUP BY day
+      ORDER BY day ASC
+    `;
+
+    const revenue7Days = await sql`
+      SELECT
+        to_char(date_trunc('day', p.created_at), 'YYYY-MM-DD') AS day,
+        COALESCE(SUM(p.amount), 0)::NUMERIC(12,2) AS revenue
+      FROM payments p
+      WHERE p.status = 'paid'
+        AND p.created_at >= now() - interval '7 days'
+      GROUP BY day
+      ORDER BY day ASC
+    `;
+
+    const statusBreakdown = await sql`
+      SELECT status, COUNT(*)::INT AS count
+      FROM requests
+      GROUP BY status
+      ORDER BY count DESC
+    `;
+
+    const topOwners = await sql`
+      SELECT o.id, o.name, COUNT(*)::INT AS total_jobs
+      FROM jobs j
+      JOIN users o ON o.id = j.owner_id
+      GROUP BY o.id, o.name
+      ORDER BY total_jobs DESC
+      LIMIT 5
+    `;
+
+    res.json({
+      success: true,
+      data: {
+        requestsLast7Days: last7Days,
+        revenueLast7Days: revenue7Days,
+        requestsByStatus: statusBreakdown,
+        topOwners
+      }
+    });
   })
 );
 
