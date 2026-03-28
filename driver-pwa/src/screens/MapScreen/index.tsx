@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { MapContainer, Marker, TileLayer, useMap } from "react-leaflet";
+import {
+  MapContainer,
+  Marker,
+  TileLayer,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Job } from "../../types";
 import { driverIcon } from "../../lib/leaflet";
@@ -33,6 +39,18 @@ export function MapScreen({
     return null;
   };
 
+  const MapInteractionWatcher = () => {
+    useMapEvents({
+      dragstart() {
+        setAutoCenter(false);
+      },
+      zoomstart() {
+        setAutoCenter(false);
+      },
+    });
+    return null;
+  };
+
   return (
     <ScreenWithNav active="map">
       <SafeArea>
@@ -44,16 +62,13 @@ export function MapScreen({
               zoom={15}
               style={{ height: "100%", width: "100%" }}
               scrollWheelZoom={false}
-              whenReady={(map) => {
-                map.target.on("dragstart", () => setAutoCenter(false));
-                map.target.on("zoomstart", () => setAutoCenter(false));
-              }}
             >
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
               <FlyToPosition center={position} />
+              <MapInteractionWatcher />
               <Marker position={position} icon={driverIcon} />
             </MapContainer>
           </MapWrap>
