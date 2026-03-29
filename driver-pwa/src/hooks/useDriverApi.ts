@@ -31,6 +31,7 @@ export function useDriverApi(setState: SetState) {
             name: data.name,
             email: data.email,
             phone: data.phone,
+            location_address: data.location_address || data.locationAddress,
           },
         }));
       })
@@ -82,6 +83,11 @@ export function useDriverApi(setState: SetState) {
       login: (auth: { user: any }) =>
         setState((s) => ({ ...s, isLoggedIn: true, user: auth.user })),
       logout: () => {
+        const auth = authStore.read();
+        const refreshToken = auth?.refreshToken;
+        if (refreshToken) {
+          api.post("/auth/logout", { refreshToken }).catch(() => {});
+        }
         authStore.write(null);
         setState((s) => ({
           ...s,
@@ -129,13 +135,20 @@ export function useDriverApi(setState: SetState) {
           ),
         }));
       },
-      uploadProof: (jobId: string) =>
+      uploadProof: async (jobId: string, internalJobId?: string, files?: File[]) => {
+        if (!internalJobId || !files || files.length === 0) return;
+        const form = new FormData();
+        files.forEach((file) => form.append("photos", file));
+        await api.post(`/driver/jobs/${internalJobId}/proofs`, form, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
         setState((s) => ({
           ...s,
           jobs: s.jobs.map((j) =>
-            j.id === jobId ? { ...j, proofCount: j.proofCount + 1 } : j,
+            j.id === jobId ? { ...j, proofCount: j.proofCount + files.length } : j,
           ),
-        })),
+        }));
+      },
       complete: (jobId: string, internalJobId?: string) => {
         updateJobStatus(internalJobId, "completed");
         setState((s) => ({

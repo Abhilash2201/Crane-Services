@@ -19,8 +19,9 @@ type Props = {
   job?: Job;
   onReached: (jobId: string) => void;
   onStarted: (jobId: string, internalJobId?: string) => void;
-  onUpload: (jobId: string) => void;
+  onUpload: (jobId: string, internalJobId?: string, files?: File[]) => Promise<void>;
   onComplete: (jobId: string, internalJobId?: string) => void;
+  onToggleOnline: () => void;
 };
 
 function ListItem({
@@ -54,11 +55,14 @@ export function ActiveJobScreen({
   onStarted,
   onUpload,
   onComplete,
+  onToggleOnline,
 }: Props) {
   const [seconds, setSeconds] = useState(6140);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimerRef = useRef<number | null>(null);
   const [confirm, setConfirm] = useState<null | "start" | "complete">(null);
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const theme = useTheme();
 
   useEffect(() => {
@@ -100,9 +104,23 @@ export function ActiveJobScreen({
     <ScreenWithNav active="map">
       <SafeArea>
         {toast ? <Toast>{toast}</Toast> : null}
-        {isOffline ? (
+        {disabled ? (
           <OfflineBar>
-            <WifiOff size={14} /> Offline mode. Buttons are disabled.
+            <WifiOff size={14} /> You&apos;re offline — actions are disabled.
+            <button
+              onClick={onToggleOnline}
+              style={{
+                border: 0,
+                background: "#0A2540",
+                color: "#fff",
+                borderRadius: 8,
+                padding: "6px 10px",
+                fontWeight: 700,
+                cursor: "pointer",
+              }}
+            >
+              Go Online
+            </button>
           </OfflineBar>
         ) : null}
         <Card>
@@ -139,9 +157,36 @@ export function ActiveJobScreen({
         >
           Work Started
         </Action>
-        <Action disabled={disabled} onClick={() => onUpload(job.id)}>
-          <Camera size={16} /> Upload Proof Photos ({job.proofCount})
+        <Action
+          disabled={disabled || uploading}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <Camera size={16} />{" "}
+          {uploading ? "Uploading..." : `Upload Proof Photos (${job.proofCount})`}
         </Action>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          multiple
+          style={{ display: "none" }}
+          onChange={async (event) => {
+            const files = event.target.files
+              ? Array.from(event.target.files)
+              : [];
+            if (!files.length) return;
+            setUploading(true);
+            try {
+              await onUpload(job.id, job.jobId, files);
+              setToast("Proof photos uploaded.");
+            } catch {
+              setToast("Upload failed. Try again.");
+            } finally {
+              setUploading(false);
+              if (fileInputRef.current) fileInputRef.current.value = "";
+            }
+          }}
+        />
         <Action
           $tone="danger"
           disabled={disabled}

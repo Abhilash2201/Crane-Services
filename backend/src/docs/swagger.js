@@ -707,6 +707,31 @@ const options = {
           responses: { 200: { description: "Status updated" } }
         }
       },
+      "/api/driver/jobs/{jobId}/proofs": {
+        post: {
+          tags: ["Driver"],
+          security: [{ bearerAuth: [] }],
+          summary: "Upload job proof photos",
+          parameters: [{ in: "path", name: "jobId", required: true, schema: { type: "string", format: "uuid" } }],
+          requestBody: {
+            required: true,
+            content: {
+              "multipart/form-data": {
+                schema: {
+                  type: "object",
+                  properties: {
+                    photos: {
+                      type: "array",
+                      items: { type: "string", format: "binary" }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          responses: { 201: { description: "Proofs uploaded" } }
+        }
+      },
       "/api/admin/overview": {
         get: {
           tags: ["Admin"],

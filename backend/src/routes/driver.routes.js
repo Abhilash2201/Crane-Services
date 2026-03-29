@@ -1,4 +1,7 @@
 const express = require("express");
+const fs = require("fs");
+const path = require("path");
+const multer = require("multer");
 const { z } = require("zod");
 const { sql } = require("../db/neon");
 const { asyncHandler } = require("../utils/asyncHandler");
@@ -17,6 +20,35 @@ const trackingSchema = z.object({
 
 const jobStatusSchema = z.object({
   status: z.enum(["assigned", "en_route", "working", "completed", "cancelled"])
+});
+
+const jobIdSchema = z.object({
+  jobId: z.coerce.string().uuid()
+});
+
+const uploadDir = path.join(process.cwd(), "uploads", "job-proofs");
+fs.mkdirSync(uploadDir, { recursive: true });
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || "");
+    const safeExt = ext.length <= 10 ? ext : "";
+    const name = `${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt}`;
+    cb(null, name);
+  }
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024, files: 6 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype?.startsWith("image/")) {
+      cb(null, true);
+    } else {
+      cb(new Error("Only image uploads are allowed"));
+    }
+  }
 });
 
 router.use(requireAuth, authorize("driver"));
@@ -109,6 +141,37 @@ router.patch(
     });
 
     res.json({ success: true, data: job[0] });
+  })
+);
+
+router.post(
+  "/jobs/:jobId/proofs",
+  upload.array("photos", 6),
+  asyncHandler(async (req, res) => {
+    const { jobId } = jobIdSchema.parse(req.params);
+    const files = Array.isArray(req.files) ? req.files : [];
+
+    if (!files.length) {
+      return res.status(400).json({ success: false, message: "No files uploaded" });
+    }
+
+    const job = await sql`
+      SELECT id FROM jobs WHERE id = ${jobId} AND driver_id = ${req.user.userId} LIMIT 1
+    `;
+    if (!job.length) throw new HttpError(404, "Job not found for this driver");
+
+    const inserted = [];
+    for (const file of files) {
+      const url = `/uploads/job-proofs/${file.filename}`;
+      const result = await sql`
+        INSERT INTO job_proofs (job_id, driver_id, url, filename, mime_type, size_bytes)
+        VALUES (${jobId}, ${req.user.userId}, ${url}, ${file.filename}, ${file.mimetype}, ${file.size})
+        RETURNING *
+      `;
+      inserted.push(result[0]);
+    }
+
+    res.status(201).json({ success: true, data: inserted });
   })
 );
 

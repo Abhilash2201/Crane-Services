@@ -7,6 +7,8 @@ import { ActionMini, InstallBanner, OfflineBar, Toggle } from "./styles";
 
 type Props = {
   phone: string;
+  name: string;
+  location: string;
   online: boolean;
   isOffline: boolean;
   active?: Job;
@@ -18,6 +20,8 @@ type Props = {
 
 export function HomeScreen({
   phone,
+  name,
+  location,
   online,
   isOffline,
   active,
@@ -26,6 +30,11 @@ export function HomeScreen({
   onDismissInstall,
   onToggleOnline,
 }: Props) {
+  const shortId = phone ? phone.slice(-4) : "Driver";
+  const displayName = name || shortId;
+  const locationLabel = location || active?.location || "Bengaluru Central";
+  const nameLabel = `Hi, ${displayName}`;
+
   return (
     <ScreenWithNav active="home">
       <SafeArea>
@@ -43,10 +52,10 @@ export function HomeScreen({
         <Row>
           <div>
             <strong style={{ color: "#0A2540" }}>
-              Hi, {phone ? phone.slice(-4) : "Driver"}
+              {nameLabel}
             </strong>
             <p style={{ margin: 0, color: "#64748B", fontSize: 13 }}>
-              Bengaluru Central
+              {locationLabel}
             </p>
           </div>
           <Toggle $on={online && !isOffline} onClick={onToggleOnline}>
@@ -63,9 +72,20 @@ export function HomeScreen({
           <strong>Current job</strong>
           {active ? (
             <>
-              <p style={{ margin: "6px 0", color: "#334155" }}>
-                {active.id} | {active.variant} | {active.location}
-              </p>
+              <div style={{ display: "grid", gap: 6, marginTop: 6 }}>
+                <div style={{ fontWeight: 700, color: "#0A2540" }}>
+                  Crane: {active.variant}
+                </div>
+                <div style={{ color: "#334155", fontSize: 13 }}>
+                  Registration: {active.jobId || "—"}
+                </div>
+                <div style={{ color: "#64748B", fontSize: 13 }}>
+                  Pickup: {active.location}
+                </div>
+                <div style={{ color: "#64748B", fontSize: 13 }}>
+                  Status: {active.status.replace("_", " ")}
+                </div>
+              </div>
               <NavigateButton to={`/active-job/${active.id}`}>
                 Open active job
               </NavigateButton>

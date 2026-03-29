@@ -6,9 +6,10 @@ type Props = {
   online: boolean;
   isOffline: boolean;
   jobs: Job[];
+  onToggleOnline: () => void;
   onReached: (jobId: string) => void;
   onStarted: (jobId: string, internalJobId?: string) => void;
-  onUpload: (jobId: string) => void;
+  onUpload: (jobId: string, internalJobId?: string, files?: File[]) => Promise<void>;
   onComplete: (jobId: string, internalJobId?: string) => void;
 };
 
@@ -16,6 +17,7 @@ export function ActiveJobRoute({
   online,
   isOffline,
   jobs,
+  onToggleOnline,
   onReached,
   onStarted,
   onUpload,
@@ -28,6 +30,7 @@ export function ActiveJobRoute({
       online={online}
       isOffline={isOffline}
       job={job}
+      onToggleOnline={onToggleOnline}
       onReached={onReached}
       onStarted={onStarted}
       onUpload={onUpload}

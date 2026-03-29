@@ -21,7 +21,13 @@ export type Job = {
 
 export type DriverState = {
   isLoggedIn: boolean;
-  user: { id?: string; name?: string; email?: string; phone?: string } | null;
+  user: {
+    id?: string;
+    name?: string;
+    email?: string;
+    phone?: string;
+    location_address?: string;
+  } | null;
   online: boolean;
   dismissedInstall: boolean;
   jobs: Job[];

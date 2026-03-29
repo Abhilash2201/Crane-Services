@@ -109,7 +109,7 @@ type AppShellProps = {
     rejectJob: (jobId: string, internalJobId?: string) => void;
     markReached: (jobId: string) => void;
     workStarted: (jobId: string, internalJobId?: string) => void;
-    uploadProof: (jobId: string) => void;
+    uploadProof: (jobId: string, internalJobId?: string, files?: File[]) => Promise<void>;
     complete: (jobId: string, internalJobId?: string) => void;
     login: (auth: { user: any }) => void;
   };
@@ -132,6 +132,8 @@ function AppShell({
         element={
           <HomeScreen
             phone={state.user?.phone || ""}
+            name={state.user?.name || ""}
+            location={state.user?.location_address || ""}
             online={state.online}
             isOffline={isOffline}
             active={derived.active}
@@ -161,6 +163,7 @@ function AppShell({
             online={state.online}
             isOffline={isOffline}
             jobs={state.jobs}
+            onToggleOnline={actions.toggleOnline}
             onReached={actions.markReached}
             onStarted={actions.workStarted}
             onUpload={actions.uploadProof}
@@ -175,6 +178,7 @@ function AppShell({
             online={state.online}
             isOffline={isOffline}
             jobs={state.jobs}
+            onToggleOnline={actions.toggleOnline}
             onReached={actions.markReached}
             onStarted={actions.workStarted}
             onUpload={actions.uploadProof}

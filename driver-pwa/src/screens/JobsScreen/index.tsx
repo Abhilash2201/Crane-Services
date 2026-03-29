@@ -13,6 +13,7 @@ type Props = {
 export function JobsScreen({ jobs, onRefresh }: Props) {
   const navigate = useNavigate();
   const [tab, setTab] = useState<"assigned" | "completed">("assigned");
+  const activeJob = jobs.find((j) => j.status === "in_progress" || j.status === "assigned");
   const filtered = jobs.filter((j) =>
     tab === "assigned"
       ? j.status === "assigned" || j.status === "in_progress"
@@ -43,12 +44,15 @@ export function JobsScreen({ jobs, onRefresh }: Props) {
         ) : null}
         {filtered.map((job) => {
           const jobKey = job.id || job.jobId || job.requestId;
+          const isActive = activeJob && activeJob.id === job.id;
+          const locked = Boolean(activeJob) && !isActive;
           return (
             <Card
               key={jobKey}
               style={{ cursor: tab === "assigned" ? "pointer" : "default" }}
               onClick={() => {
                 if (tab !== "assigned" || !jobKey) return;
+                if (locked) return;
                 navigate(`/active-job/${jobKey}`);
               }}
             >
@@ -63,12 +67,17 @@ export function JobsScreen({ jobs, onRefresh }: Props) {
                   type="button"
                   onClick={(event) => {
                     event.stopPropagation();
-                    if (!jobKey) return;
+                    if (!jobKey || locked) return;
                     navigate(`/active-job/${jobKey}`);
                   }}
                 >
-                  Open Job
+                  {isActive ? "Continue Job" : locked ? "Locked" : "Open Job"}
                 </Action>
+              ) : null}
+              {locked ? (
+                <small style={{ color: "#b45309" }}>
+                  Finish current job before starting another.
+                </small>
               ) : null}
             </Card>
           );
