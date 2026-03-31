@@ -35,10 +35,12 @@ const emptyForm: VariantForm = {
 
 export function VariantsPage() {
   const [rows, setRows] = useState<any[]>([]);
+  const [variantRequests, setVariantRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   const [form, setForm] = useState<VariantForm>(emptyForm);
   const [message, setMessage] = useState("");
+  const [variantRequestMessage, setVariantRequestMessage] = useState("");
 
   const loadVariants = () => {
     api
@@ -48,8 +50,16 @@ export function VariantsPage() {
       .finally(() => setLoading(false));
   };
 
+  const loadVariantRequests = () => {
+    api
+      .get("/admin/variant-requests")
+      .then((res) => setVariantRequests(res.data?.data || []))
+      .catch(() => setVariantRequests([]));
+  };
+
   useEffect(() => {
     loadVariants();
+    loadVariantRequests();
   }, []);
 
   const openCreate = () => {
@@ -100,7 +110,7 @@ export function VariantsPage() {
         loadVariants();
       })
       .catch((err) =>
-        setMessage(err?.response?.data?.message || "Unable to save variant."),
+        setMessage(err?.response?.data?.message || "Unable to save variant.")
       );
   };
 
@@ -112,110 +122,237 @@ export function VariantsPage() {
       .catch(() => {});
   };
 
+  const processVariantRequest = (variantRequestId: string, status: "approved" | "rejected") => {
+    setVariantRequestMessage("");
+    api
+      .patch(`/admin/variant-requests/${variantRequestId}`, { status })
+      .then(() => {
+        setVariantRequestMessage(`Variant request ${status}.`);
+        loadVariants();
+        loadVariantRequests();
+      })
+      .catch((error) =>
+        setVariantRequestMessage(
+          error?.response?.data?.message || "Unable to update request."
+        )
+      );
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-          }}
-        >
-          <CardTitle>Crane Variants</CardTitle>
-          <Button onClick={openCreate}>Add Variant</Button>
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div style={{ overflow: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                {[
-                  "Name",
-                  "Capacity (tons)",
-                  "Description",
-                  "Base Charge",
-                  "Base Hours",
-                  "Overtime / hr",
-                  "Status",
-                  "Created",
-                  "Actions",
-                ].map((head) => (
-                  <th
-                    key={head}
-                    style={{
-                      textAlign: "left",
-                      borderBottom: "1px solid #E2E8F0",
-                      padding: 10,
-                      fontSize: 12,
-                      color: "#64748B",
-                    }}
-                  >
-                    {head}
-                  </th>
+    <div style={{ display: "grid", gap: 14 }}>
+      <Card>
+        <CardHeader>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+            }}
+          >
+            <CardTitle>Crane Variants</CardTitle>
+            <Button onClick={openCreate}>Add Variant</Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div style={{ overflow: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
+                <tr>
+                  {[
+                    "Name",
+                    "Capacity (tons)",
+                    "Description",
+                    "Base Charge",
+                    "Base Hours",
+                    "Overtime / hr",
+                    "Status",
+                    "Created",
+                    "Actions",
+                  ].map((head) => (
+                    <th
+                      key={head}
+                      style={{
+                        textAlign: "left",
+                        borderBottom: "1px solid #E2E8F0",
+                        padding: 10,
+                        fontSize: 12,
+                        color: "#64748B",
+                      }}
+                    >
+                      {head}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr>
+                    <td colSpan={9} style={{ padding: 12 }}>
+                      Loading variants...
+                    </td>
+                  </tr>
+                ) : null}
+                {!loading && rows.length === 0 ? (
+                  <tr>
+                    <td colSpan={9} style={{ padding: 12 }}>
+                      No variants found.
+                    </td>
+                  </tr>
+                ) : null}
+                {rows.map((row) => (
+                  <tr key={row.id}>
+                    <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                      {row.name}
+                    </td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                      {row.capacity_tons ?? "-"}
+                    </td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                      {row.description || "-"}
+                    </td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                      {row.base_charge ?? "-"}
+                    </td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                      {row.base_hours ?? "-"}
+                    </td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                      {row.overtime_rate ?? "-"}
+                    </td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                      {row.is_active ? "Active" : "Inactive"}
+                    </td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                      {row.created_at
+                        ? new Date(row.created_at).toLocaleDateString()
+                        : "-"}
+                    </td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <Button size="sm" variant="outline" onClick={() => openEdit(row)}>
+                          Edit
+                        </Button>
+                        <Button size="sm" variant="danger" onClick={() => deleteVariant(row.id)}>
+                          Delete
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
                 ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Owner Variant Requests</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {variantRequestMessage ? (
+            <small style={{ color: "#334155", display: "block", marginBottom: 10 }}>
+              {variantRequestMessage}
+            </small>
+          ) : null}
+          <div style={{ overflow: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse" }}>
+              <thead>
                 <tr>
-                  <td colSpan={9} style={{ padding: 12 }}>
-                    Loading variants...
-                  </td>
+                  {[
+                    "Owner",
+                    "Suggested Name",
+                    "Capacity",
+                    "Expected Base",
+                    "Expected Hours",
+                    "Expected Overtime",
+                    "Description",
+                    "Status",
+                    "Created",
+                    "Actions",
+                  ].map((head) => (
+                    <th
+                      key={head}
+                      style={{
+                        textAlign: "left",
+                        borderBottom: "1px solid #E2E8F0",
+                        padding: 10,
+                        fontSize: 12,
+                        color: "#64748B",
+                      }}
+                    >
+                      {head}
+                    </th>
+                  ))}
                 </tr>
-              ) : null}
-              {!loading && rows.length === 0 ? (
-                <tr>
-                  <td colSpan={9} style={{ padding: 12 }}>
-                    No variants found.
-                  </td>
-                </tr>
-              ) : null}
-              {rows.map((row) => (
-                <tr key={row.id}>
-                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
-                    {row.name}
-                  </td>
-                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
-                    {row.capacity_tons ?? "—"}
-                  </td>
-                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
-                    {row.description || "—"}
-                  </td>
-                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
-                    {row.base_charge ?? "—"}
-                  </td>
-                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
-                    {row.base_hours ?? "—"}
-                  </td>
-                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
-                    {row.overtime_rate ?? "—"}
-                  </td>
-                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
-                    {row.is_active ? "Active" : "Inactive"}
-                  </td>
-                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
-                    {row.created_at
-                      ? new Date(row.created_at).toLocaleDateString()
-                      : "—"}
-                  </td>
-                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
-                    <div style={{ display: "flex", gap: 8 }}>
-                      <Button size="sm" variant="outline" onClick={() => openEdit(row)}>
-                        Edit
-                      </Button>
-                      <Button size="sm" variant="danger" onClick={() => deleteVariant(row.id)}>
-                        Delete
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </CardContent>
+              </thead>
+              <tbody>
+                {variantRequests.length === 0 ? (
+                  <tr>
+                    <td colSpan={10} style={{ padding: 12 }}>
+                      No variant requests.
+                    </td>
+                  </tr>
+                ) : null}
+                {variantRequests.map((row) => (
+                  <tr key={row.id}>
+                    <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                      {row.owner_name || "-"}
+                    </td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                      {row.suggested_name}
+                    </td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                      {row.capacity_tons ?? "-"}
+                    </td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                      {row.expected_base_charge ?? "-"}
+                    </td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                      {row.expected_base_hours ?? "-"}
+                    </td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                      {row.expected_overtime_rate ?? "-"}
+                    </td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                      {row.description || "-"}
+                    </td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                      {row.status}
+                    </td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                      {row.created_at
+                        ? new Date(row.created_at).toLocaleDateString()
+                        : "-"}
+                    </td>
+                    <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
+                      {row.status === "pending" ? (
+                        <div style={{ display: "flex", gap: 8 }}>
+                          <Button
+                            size="sm"
+                            onClick={() => processVariantRequest(row.id, "approved")}
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => processVariantRequest(row.id, "rejected")}
+                          >
+                            Reject
+                          </Button>
+                        </div>
+                      ) : (
+                        "-"
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </CardContent>
+      </Card>
 
       <Modal
         open={open}
@@ -323,6 +460,7 @@ export function VariantsPage() {
           </div>
         </div>
       </Modal>
-    </Card>
+    </div>
   );
 }
+

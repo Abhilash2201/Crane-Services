@@ -11,21 +11,25 @@ import { Tabs } from "../components/ui/tabs";
 import { Textarea } from "../components/ui/textarea";
 import { api } from "../lib/api";
 
-const craneOptions = [
-  { name: "25T Mobile", type: "Mobile", capacity: 25, radius: "12m", city: "Bengaluru" },
-  { name: "50T Rough Terrain", type: "Rough Terrain", capacity: 50, radius: "18m", city: "Mumbai" },
-  { name: "100T Crawler", type: "Crawler", capacity: 100, radius: "28m", city: "Delhi" },
-  { name: "Tower Crane", type: "Tower", capacity: 80, radius: "60m", city: "Mumbai" },
-  { name: "80T All Terrain", type: "Mobile", capacity: 80, radius: "24m", city: "Delhi" }
-];
+type CraneVariant = {
+  id: string;
+  name: string;
+  capacity_tons?: number | null;
+  description?: string | null;
+  base_charge?: number | null;
+  base_hours?: number | null;
+  overtime_rate?: number | null;
+};
 
 const Wizard = styled.div`display: grid; gap: 14px;`;
 const Grid = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;`;
 
 export function NewRequestPage() {
   const [step, setStep] = useState(1);
-  const [selectedType, setSelectedType] = useState("All");
-  const [selectedCrane, setSelectedCrane] = useState("50T Rough Terrain");
+  const [variants, setVariants] = useState<CraneVariant[]>([]);
+  const [variantsLoading, setVariantsLoading] = useState(true);
+  const [capacityFilter, setCapacityFilter] = useState("");
+  const [selectedVariantId, setSelectedVariantId] = useState<string>("");
   const [pickupAddress, setPickupAddress] = useState("");
   const [dropAddress, setDropAddress] = useState("");
   const [scheduledAt, setScheduledAt] = useState("");
@@ -43,10 +47,31 @@ export function NewRequestPage() {
   const pickupAutocompleteRef = useRef<any>(null);
   const dropAutocompleteRef = useRef<any>(null);
   const navigate = useNavigate();
-  const filtered = useMemo(() => (selectedType === "All" ? craneOptions : craneOptions.filter((item) => item.type === selectedType)), [selectedType]);
-  const selectedCraneData = useMemo(
-    () => craneOptions.find((item) => item.name === selectedCrane) || craneOptions[0],
-    [selectedCrane]
+
+  useEffect(() => {
+    api
+      .get("/variants", { params: { active: true } })
+      .then((res) => {
+        const rows = (res.data?.data || []) as CraneVariant[];
+        setVariants(rows);
+        if (rows.length) setSelectedVariantId(rows[0].id);
+      })
+      .catch(() => setVariants([]))
+      .finally(() => setVariantsLoading(false));
+  }, []);
+
+  const filtered = useMemo(() => {
+    const minCapacity = capacityFilter ? Number(capacityFilter) : null;
+    if (!minCapacity || Number.isNaN(minCapacity)) return variants;
+    return variants.filter((item) => {
+      const cap = item.capacity_tons ? Number(item.capacity_tons) : null;
+      return cap !== null && cap >= minCapacity;
+    });
+  }, [capacityFilter, variants]);
+
+  const selectedVariant = useMemo(
+    () => variants.find((item) => item.id === selectedVariantId) || null,
+    [selectedVariantId, variants]
   );
 
   useEffect(() => {
@@ -86,7 +111,7 @@ export function NewRequestPage() {
     const restrictions = { country: ["in"] };
     const bounds = new google.maps.LatLngBounds(
       { lat: 12.7343, lng: 77.3792 },
-      { lat: 13.1737, lng: 77.8827 },
+      { lat: 13.1737, lng: 77.8827 }
     );
 
     if (pickupInputRef.current && !pickupAutocompleteRef.current) {
@@ -98,7 +123,7 @@ export function NewRequestPage() {
           componentRestrictions: restrictions,
           bounds,
           strictBounds: true,
-        },
+        }
       );
       pickupAutocomplete.addListener("place_changed", () => {
         const place = pickupAutocomplete.getPlace();
@@ -118,7 +143,7 @@ export function NewRequestPage() {
           componentRestrictions: restrictions,
           bounds,
           strictBounds: true,
-        },
+        }
       );
       dropAutocomplete.addListener("place_changed", () => {
         const place = dropAutocomplete.getPlace();
@@ -131,14 +156,18 @@ export function NewRequestPage() {
   }, [mapsReady, step]);
 
   useEffect(() => {
-    const capacityTons = selectedCraneData?.capacity;
+    const variantId = selectedVariant?.id;
+    const capacityTons = selectedVariant?.capacity_tons
+      ? Number(selectedVariant.capacity_tons)
+      : undefined;
+
     api
       .get("/pricing", {
-        params: capacityTons ? { capacityTons } : undefined,
+        params: variantId ? { variantId } : capacityTons ? { capacityTons } : undefined,
       })
       .then((res) => setPricing(res.data?.data || null))
       .catch(() => setPricing(null));
-  }, [selectedCraneData]);
+  }, [selectedVariant]);
 
   const estimatedPrice = useMemo(() => {
     if (!pricing) return null;
@@ -182,7 +211,10 @@ export function NewRequestPage() {
     const payload = {
       pickupAddress: pickupAddress.trim(),
       dropAddress: dropAddress.trim() || undefined,
-      requiredCapacityTons: selectedCraneData?.capacity,
+      variantId: selectedVariant?.id || undefined,
+      requiredCapacityTons: selectedVariant?.capacity_tons
+        ? Number(selectedVariant.capacity_tons)
+        : undefined,
       durationHours: durationHours ? Number(durationHours) : undefined,
       scheduledAt: scheduledAt || undefined,
       notes: [
@@ -226,7 +258,7 @@ export function NewRequestPage() {
       .catch((error) => {
         toast.error(
           error?.response?.data?.message ||
-            "Unable to submit request. Please try again.",
+            "Unable to submit request. Please try again."
         );
       })
       .finally(() => setSubmitting(false));
@@ -242,137 +274,173 @@ export function NewRequestPage() {
   return (
     <Wizard>
       <h1>New Crane Request</h1>
-      <Tabs options={["Step 1: Variant", "Step 2: Job", "Step 3: Review"]} value={`Step ${step}: ${step === 1 ? "Variant" : step === 2 ? "Job" : "Review"}`} onChange={(v) => setStep(Number(v[5]))} />
+      <Tabs
+        options={["Step 1: Variant", "Step 2: Job", "Step 3: Review"]}
+        value={`Step ${step}: ${step === 1 ? "Variant" : step === 2 ? "Job" : "Review"}`}
+        onChange={(v) => setStep(Number(v[5]))}
+      />
 
       {step === 1 && (
-        <Card><CardContent style={{ display: "grid", gap: 14 }}>
-          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
-            <Badge variant="outline"><Filter size={14} /> Filters</Badge>
-            <Input placeholder="Capacity 10-200T" style={{ maxWidth: 180 }} />
-            <Tabs options={["All", "Mobile", "Crawler", "Tower", "Rough Terrain"]} value={selectedType} onChange={setSelectedType} />
-            <Input placeholder="Radius (e.g. 20m)" style={{ maxWidth: 160 }} />
-          </div>
-          <Grid>
-            {filtered.map((crane) => (
-              <Card key={crane.name} onClick={() => setSelectedCrane(crane.name)} style={{ cursor: "pointer", borderColor: selectedCrane === crane.name ? "#FF6200" : undefined }}>
-                <CardContent>
-                  <h3 style={{ marginTop: 0 }}>{crane.name}</h3>
-                  <p style={{ color: "#64748B" }}>{`${crane.capacity}T | ${crane.type} | ${crane.radius}`}</p>
-                  <Badge>{crane.city}</Badge>
-                </CardContent>
-              </Card>
-            ))}
-          </Grid>
-          <Button size="lg" onClick={() => setStep(2)}>Continue to Job Details <MoveRight size={16} /></Button>
-        </CardContent></Card>
+        <Card>
+          <CardContent style={{ display: "grid", gap: 14 }}>
+            <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 8 }}>
+              <Badge variant="outline"><Filter size={14} /> Filters</Badge>
+              <Input
+                placeholder="Min capacity tons"
+                style={{ maxWidth: 180 }}
+                value={capacityFilter}
+                onChange={(event) =>
+                  setCapacityFilter(event.target.value.replace(/[^\d.]/g, ""))
+                }
+              />
+            </div>
+            <Grid>
+              {variantsLoading ? <p>Loading variants...</p> : null}
+              {!variantsLoading && filtered.length === 0 ? (
+                <p>No active variants available.</p>
+              ) : null}
+              {filtered.map((crane) => (
+                <Card
+                  key={crane.id}
+                  onClick={() => setSelectedVariantId(crane.id)}
+                  style={{
+                    cursor: "pointer",
+                    borderColor: selectedVariant?.id === crane.id ? "#FF6200" : undefined,
+                  }}
+                >
+                  <CardContent>
+                    <h3 style={{ marginTop: 0 }}>{crane.name}</h3>
+                    <p style={{ color: "#64748B" }}>
+                      {crane.capacity_tons ? `${Number(crane.capacity_tons)}T` : "Capacity on request"}
+                      {crane.description ? ` | ${crane.description}` : ""}
+                    </p>
+                    <Badge>
+                      Rs {Number(crane.base_charge || 0)} / {Number(crane.base_hours || 0)}h
+                    </Badge>
+                  </CardContent>
+                </Card>
+              ))}
+            </Grid>
+            <Button size="lg" onClick={() => setStep(2)} disabled={!selectedVariant}>
+              Continue to Job Details <MoveRight size={16} />
+            </Button>
+          </CardContent>
+        </Card>
       )}
 
       {step === 2 && (
-        <Card><CardContent style={{ display: "grid", gap: 12 }}>
-          <h3 style={{ margin: 0 }}>Job Details</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
-            <div>
-              <label><MapPinned size={14} /> Job Location (Google Maps Picker)</label>
-              <div style={{ marginTop: 6, height: 140, borderRadius: 12, border: "1px solid #E2E8F0", display: "grid", placeItems: "center", background: "linear-gradient(120deg,#dbeafe,#f1f5f9)" }}>
-                Map picker placeholder
+        <Card>
+          <CardContent style={{ display: "grid", gap: 12 }}>
+            <h3 style={{ margin: 0 }}>Job Details</h3>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
+              <div>
+                <label><MapPinned size={14} /> Job Location (Google Maps Picker)</label>
+                <div style={{ marginTop: 6, height: 140, borderRadius: 12, border: "1px solid #E2E8F0", display: "grid", placeItems: "center", background: "linear-gradient(120deg,#dbeafe,#f1f5f9)" }}>
+                  Map picker placeholder
+                </div>
+                <Input
+                  ref={pickupInputRef}
+                  placeholder="Pickup address"
+                  style={{ marginTop: 8 }}
+                  value={pickupAddress}
+                  onChange={(e) => setPickupAddress(e.target.value)}
+                />
+                <Input
+                  ref={dropInputRef}
+                  placeholder="Drop address (optional)"
+                  style={{ marginTop: 8 }}
+                  value={dropAddress}
+                  onChange={(e) => setDropAddress(e.target.value)}
+                />
               </div>
-              <Input
-                ref={pickupInputRef}
-                placeholder="Pickup address"
-                style={{ marginTop: 8 }}
-                value={pickupAddress}
-                onChange={(e) => setPickupAddress(e.target.value)}
-              />
-              <Input
-                ref={dropInputRef}
-                placeholder="Drop address (optional)"
-                style={{ marginTop: 8 }}
-                value={dropAddress}
-                onChange={(e) => setDropAddress(e.target.value)}
-              />
+              <div>
+                <label><CalendarClock size={14} /> Date & Time</label>
+                <Input
+                  type="datetime-local"
+                  style={{ marginTop: 6 }}
+                  value={scheduledAt}
+                  onChange={(e) => setScheduledAt(e.target.value)}
+                />
+                <label style={{ display: "block", marginTop: 10 }}>Duration (hours)</label>
+                <Input
+                  placeholder="4"
+                  value={durationHours}
+                  onChange={(e) => setDurationHours(e.target.value.replace(/[^\d.]/g, ""))}
+                />
+              </div>
             </div>
-            <div>
-              <label><CalendarClock size={14} /> Date & Time</label>
-              <Input
-                type="datetime-local"
-                style={{ marginTop: 6 }}
-                value={scheduledAt}
-                onChange={(e) => setScheduledAt(e.target.value)}
-              />
-              <label style={{ display: "block", marginTop: 10 }}>Duration (hours)</label>
-              <Input
-                placeholder="4"
-                value={durationHours}
-                onChange={(e) => setDurationHours(e.target.value.replace(/[^\d.]/g, ""))}
-              />
+            <label>Load Description</label>
+            <Input
+              placeholder="Lift 22-ton DG unit to rooftop (18m radius)"
+              value={loadDescription}
+              onChange={(e) => setLoadDescription(e.target.value)}
+            />
+            <label>Special Instructions</label>
+            <Textarea
+              placeholder="Night shift entry gate is gate 3. Operator must carry PPE kit."
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+            />
+            <label><Camera size={14} /> Site Photo Upload</label>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              onChange={handlePhotoSelect}
+              style={{ display: "none" }}
+            />
+            <Button
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <UploadCloud size={16} /> Upload Photos
+            </Button>
+            {photos.length ? (
+              <small style={{ color: "#64748B" }}>
+                {photos.length} photo{photos.length > 1 ? "s" : ""} selected
+              </small>
+            ) : null}
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
+              <Button size="lg" onClick={() => setStep(3)}>Review Request</Button>
             </div>
-          </div>
-          <label>Load Description</label>
-          <Input
-            placeholder="Lift 22-ton DG unit to rooftop (18m radius)"
-            value={loadDescription}
-            onChange={(e) => setLoadDescription(e.target.value)}
-          />
-          <label>Special Instructions</label>
-          <Textarea
-            placeholder="Night shift entry gate is gate 3. Operator must carry PPE kit."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-          />
-          <label><Camera size={14} /> Site Photo Upload</label>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/*"
-            multiple
-            onChange={handlePhotoSelect}
-            style={{ display: "none" }}
-          />
-          <Button
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <UploadCloud size={16} /> Upload Photos
-          </Button>
-          {photos.length ? (
-            <small style={{ color: "#64748B" }}>
-              {photos.length} photo{photos.length > 1 ? "s" : ""} selected
-            </small>
-          ) : null}
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-            <Button size="lg" onClick={() => setStep(3)}>Review Request</Button>
-          </div>
-        </CardContent></Card>
+          </CardContent>
+        </Card>
       )}
 
       {step === 3 && (
-        <Card><CardContent style={{ display: "grid", gap: 12 }}>
-          <h3 style={{ margin: 0 }}>Review & Submit</h3>
-          <Card><CardContent>
-            <p><b>Variant:</b> {selectedCrane}</p>
-            <p><b>Pickup:</b> {pickupAddress || "-"}</p>
-            <p><b>Drop:</b> {dropAddress || "-"}</p>
-            <p><b>Schedule:</b> {scheduledAt || "-"}</p>
-            <p><b>Duration:</b> {durationHours ? `${durationHours} hrs` : "-"}</p>
-            <p>
-              <b>Estimated Price:</b>{" "}
-              {estimatedPrice ? `₹${estimatedPrice.toLocaleString()}` : "—"}
-            </p>
-            {pricing ? (
-              <small style={{ color: "#64748B" }}>
-                Pricing: ₹{pricing.base_charge} for first {pricing.base_hours} hours, then ₹{pricing.overtime_rate}/hour.
-              </small>
-            ) : null}
-          </CardContent></Card>
-          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-            <Button variant="outline" onClick={() => setStep(2)}>Edit Details</Button>
-            <Button size="lg" onClick={handleSubmit} disabled={submitting || uploading}>
-              {submitting || uploading ? "Submitting..." : "Submit Request"}
-            </Button>
-          </div>
-        </CardContent></Card>
+        <Card>
+          <CardContent style={{ display: "grid", gap: 12 }}>
+            <h3 style={{ margin: 0 }}>Review & Submit</h3>
+            <Card>
+              <CardContent>
+                <p><b>Variant:</b> {selectedVariant?.name || "-"}</p>
+                <p><b>Pickup:</b> {pickupAddress || "-"}</p>
+                <p><b>Drop:</b> {dropAddress || "-"}</p>
+                <p><b>Schedule:</b> {scheduledAt || "-"}</p>
+                <p><b>Duration:</b> {durationHours ? `${durationHours} hrs` : "-"}</p>
+                <p>
+                  <b>Estimated Price:</b>{" "}
+                  {estimatedPrice ? `Rs ${estimatedPrice.toLocaleString()}` : "-"}
+                </p>
+                {pricing ? (
+                  <small style={{ color: "#64748B" }}>
+                    Pricing: Rs {pricing.base_charge} for first {pricing.base_hours} hours, then Rs {pricing.overtime_rate}/hour.
+                  </small>
+                ) : null}
+              </CardContent>
+            </Card>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+              <Button variant="outline" onClick={() => setStep(2)}>Edit Details</Button>
+              <Button size="lg" onClick={handleSubmit} disabled={submitting || uploading}>
+                {submitting || uploading ? "Submitting..." : "Submit Request"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
       )}
     </Wizard>
   );
 }
+

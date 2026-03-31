@@ -30,6 +30,22 @@ const variantCreateSchema = z.object({
 
 const variantUpdateSchema = variantCreateSchema.partial();
 
+const variantRequestUpdateSchema = z.object({
+  status: z.enum(["approved", "rejected"]),
+  adminComment: z.string().max(500).optional(),
+  approvedVariant: z
+    .object({
+      name: z.string().min(2),
+      capacityTons: z.coerce.number().positive().optional(),
+      description: z.string().max(500).optional(),
+      isActive: z.boolean().optional(),
+      baseCharge: z.coerce.number().positive().optional(),
+      baseHours: z.coerce.number().positive().optional(),
+      overtimeRate: z.coerce.number().positive().optional()
+    })
+    .optional()
+});
+
 router.use(requireAuth, authorize("admin"));
 
 router.get(
@@ -159,6 +175,110 @@ router.delete(
     `;
     if (!rows.length) throw new HttpError(404, "Variant not found");
     res.json({ success: true });
+  })
+);
+
+router.get(
+  "/variant-requests",
+  asyncHandler(async (_req, res) => {
+    const rows = await sql`
+      SELECT vr.*, o.name AS owner_name, o.email AS owner_email,
+             r.pickup_address, r.drop_address
+      FROM variant_requests vr
+      JOIN users o ON o.id = vr.owner_id
+      LEFT JOIN requests r ON r.id = vr.request_id
+      ORDER BY
+        CASE WHEN vr.status = 'pending' THEN 0 ELSE 1 END,
+        vr.created_at DESC
+      LIMIT 500
+    `;
+    res.json({ success: true, data: rows });
+  })
+);
+
+router.patch(
+  "/variant-requests/:variantRequestId",
+  asyncHandler(async (req, res) => {
+    const payload = variantRequestUpdateSchema.parse(req.body);
+    const { variantRequestId } = req.params;
+
+    const existing = await sql`
+      SELECT *
+      FROM variant_requests
+      WHERE id = ${variantRequestId}
+      LIMIT 1
+    `;
+    if (!existing.length) throw new HttpError(404, "Variant request not found");
+
+    const current = existing[0];
+    if (current.status !== "pending") {
+      throw new HttpError(400, "Variant request already processed");
+    }
+
+    let createdVariantId = null;
+    if (payload.status === "approved") {
+      const source = payload.approvedVariant || {
+        name: current.suggested_name,
+        capacityTons: current.capacity_tons ? Number(current.capacity_tons) : undefined,
+        description: current.description || undefined,
+        baseCharge: current.expected_base_charge
+          ? Number(current.expected_base_charge)
+          : undefined,
+        baseHours: current.expected_base_hours ? Number(current.expected_base_hours) : undefined,
+        overtimeRate: current.expected_overtime_rate
+          ? Number(current.expected_overtime_rate)
+          : undefined
+      };
+
+      const created = await sql`
+        INSERT INTO crane_variants (name, capacity_tons, description, is_active, base_charge, base_hours, overtime_rate)
+        VALUES (
+          ${source.name},
+          ${source.capacityTons || null},
+          ${source.description || null},
+          ${source.isActive ?? true},
+          ${source.baseCharge || null},
+          ${source.baseHours || null},
+          ${source.overtimeRate || null}
+        )
+        ON CONFLICT (name) DO UPDATE
+        SET
+          capacity_tons = COALESCE(EXCLUDED.capacity_tons, crane_variants.capacity_tons),
+          description = COALESCE(EXCLUDED.description, crane_variants.description),
+          is_active = COALESCE(EXCLUDED.is_active, crane_variants.is_active),
+          base_charge = COALESCE(EXCLUDED.base_charge, crane_variants.base_charge),
+          base_hours = COALESCE(EXCLUDED.base_hours, crane_variants.base_hours),
+          overtime_rate = COALESCE(EXCLUDED.overtime_rate, crane_variants.overtime_rate),
+          updated_at = now()
+        RETURNING id
+      `;
+
+      createdVariantId = created[0].id;
+
+      if (current.request_id) {
+        await sql`
+          UPDATE requests
+          SET variant_id = ${createdVariantId}, updated_at = now()
+          WHERE id = ${current.request_id}
+        `;
+      }
+    }
+
+    const rows = await sql`
+      UPDATE variant_requests
+      SET
+        status = ${payload.status},
+        admin_comment = ${payload.adminComment || null},
+        approved_variant_id = ${createdVariantId || null},
+        reviewed_at = now()
+      WHERE id = ${variantRequestId}
+      RETURNING *
+    `;
+
+    const io = req.app.get("io");
+    io?.to(`user:${current.owner_id}`).emit("variant_request:updated", rows[0]);
+
+    res.json({ success: true, data: rows[0] });
   })
 );
 

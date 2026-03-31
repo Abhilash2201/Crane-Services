@@ -43,6 +43,16 @@ const fleetCreateSchema = z.object({
 
 const fleetUpdateSchema = fleetCreateSchema.partial();
 
+const variantRequestCreateSchema = z.object({
+  requestId: z.string().uuid().optional(),
+  suggestedName: z.string().min(2),
+  capacityTons: z.coerce.number().positive().optional(),
+  description: z.string().max(500).optional(),
+  expectedBaseCharge: z.coerce.number().positive().optional(),
+  expectedBaseHours: z.coerce.number().positive().optional(),
+  expectedOvertimeRate: z.coerce.number().positive().optional()
+});
+
 router.use(requireAuth, authorize("owner"));
 
 router.get(
@@ -50,7 +60,7 @@ router.get(
   asyncHandler(async (_req, res) => {
     const rows = await sql`
       SELECT id, customer_id, pickup_address, drop_address, required_capacity_tons,
-             scheduled_at, status, notes, created_at
+             variant_id, scheduled_at, status, notes, created_at
       FROM requests
       WHERE status = 'pending'
       ORDER BY created_at DESC
@@ -65,7 +75,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const rows = await sql`
       SELECT id, customer_id, pickup_address, drop_address, required_capacity_tons,
-             scheduled_at, status, notes, created_at
+             variant_id, scheduled_at, status, notes, created_at
       FROM requests
       WHERE status = 'accepted' AND owner_id = ${req.user.userId}
       ORDER BY created_at DESC
@@ -172,6 +182,61 @@ router.delete(
       WHERE owner_id = ${req.user.userId} AND driver_id = ${driverId}
     `;
     res.json({ success: true });
+  })
+);
+
+router.post(
+  "/variant-requests",
+  asyncHandler(async (req, res) => {
+    const payload = variantRequestCreateSchema.parse(req.body);
+
+    if (payload.requestId) {
+      const requestRows = await sql`
+        SELECT id
+        FROM requests
+        WHERE id = ${payload.requestId}
+        LIMIT 1
+      `;
+      if (!requestRows.length) throw new HttpError(404, "Request not found");
+    }
+
+    const rows = await sql`
+      INSERT INTO variant_requests (
+        owner_id, request_id, suggested_name, capacity_tons, description,
+        expected_base_charge, expected_base_hours, expected_overtime_rate
+      )
+      VALUES (
+        ${req.user.userId},
+        ${payload.requestId || null},
+        ${payload.suggestedName},
+        ${payload.capacityTons || null},
+        ${payload.description || null},
+        ${payload.expectedBaseCharge || null},
+        ${payload.expectedBaseHours || null},
+        ${payload.expectedOvertimeRate || null}
+      )
+      RETURNING *
+    `;
+
+    const io = req.app.get("io");
+    io?.to("role:admin").emit("variant_request:created", rows[0]);
+
+    res.status(201).json({ success: true, data: rows[0] });
+  })
+);
+
+router.get(
+  "/variant-requests",
+  asyncHandler(async (req, res) => {
+    const rows = await sql`
+      SELECT vr.*, r.pickup_address, r.drop_address
+      FROM variant_requests vr
+      LEFT JOIN requests r ON r.id = vr.request_id
+      WHERE vr.owner_id = ${req.user.userId}
+      ORDER BY vr.created_at DESC
+      LIMIT 200
+    `;
+    res.json({ success: true, data: rows });
   })
 );
 

@@ -13,6 +13,7 @@ const router = express.Router();
 const requestSchema = z.object({
   pickupAddress: z.string().min(5),
   dropAddress: z.string().min(5).optional(),
+  variantId: z.string().uuid().optional(),
   requiredCapacityTons: z.coerce.number().positive().optional(),
   durationHours: z.coerce.number().positive().optional(),
   scheduledAt: z.string().datetime().optional(),
@@ -87,17 +88,19 @@ router.post(
   asyncHandler(async (req, res) => {
     const payload = requestSchema.parse(req.body);
     const pricing = await getPricingRule({
+      variantId: payload.variantId,
       capacityTons: payload.requiredCapacityTons
     });
     const estimatedPrice = calculatePrice(payload.durationHours, pricing);
     const result = await sql`
       INSERT INTO requests (
-        customer_id, pickup_address, drop_address, required_capacity_tons, duration_hours, scheduled_at, notes, estimated_price
+        customer_id, pickup_address, drop_address, variant_id, required_capacity_tons, duration_hours, scheduled_at, notes, estimated_price
       )
       VALUES (
         ${req.user.userId},
         ${payload.pickupAddress},
         ${payload.dropAddress || null},
+        ${payload.variantId || null},
         ${payload.requiredCapacityTons || null},
         ${payload.durationHours || null},
         ${payload.scheduledAt || null},
