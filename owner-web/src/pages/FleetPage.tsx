@@ -14,6 +14,7 @@ function statusBadge(status: string) {
 
 export function FleetPage() {
   const [fleet, setFleet] = useState<any[]>([]);
+  const [variants, setVariants] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [open, setOpen] = useState(false);
@@ -22,16 +23,22 @@ export function FleetPage() {
   const [form, setForm] = useState({
     name: "",
     type: "",
+    variantId: "",
     capacityTons: "",
     registration: ""
   });
 
   useEffect(() => {
-    api
-      .get("/owner/fleet")
-      .then((res) => setFleet(res.data?.data || []))
+    Promise.all([
+      api.get("/owner/fleet"),
+      api.get("/variants", { params: { active: true } }),
+    ])
+      .then(([fleetRes, variantsRes]) => {
+        setFleet(fleetRes.data?.data || []);
+        setVariants(variantsRes.data?.data || []);
+      })
       .catch((err) =>
-        setError(err?.response?.data?.message || "Unable to load fleet."),
+        setError(err?.response?.data?.message || "Unable to load fleet.")
       )
       .finally(() => setLoading(false));
   }, []);
@@ -62,8 +69,9 @@ export function FleetPage() {
             </div>
             <CardContent style={{ display: "grid", gap: 8 }}>
               <h3 style={{ margin: 0 }}>{crane.name}</h3>
-              <p style={{ margin: 0, color: "#64748B" }}><b>Capacity:</b> {crane.capacity_tons || "—"}T</p>
-              <p style={{ margin: 0, color: "#64748B" }}><b>Reg No:</b> {crane.registration || "—"}</p>
+              <p style={{ margin: 0, color: "#64748B" }}><b>Variant:</b> {crane.variant_name || "-"}</p>
+              <p style={{ margin: 0, color: "#64748B" }}><b>Capacity:</b> {crane.capacity_tons || "-"}T</p>
+              <p style={{ margin: 0, color: "#64748B" }}><b>Reg No:</b> {crane.registration || "-"}</p>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <Badge variant={statusBadge(crane.status) as "success" | "warning" | "outline"}>
                   {crane.status}
@@ -101,6 +109,7 @@ export function FleetPage() {
                     setForm({
                       name: crane.name || "",
                       type: crane.type || "",
+                      variantId: crane.variant_id || "",
                       capacityTons: crane.capacity_tons ? String(crane.capacity_tons) : "",
                       registration: crane.registration || ""
                     });
@@ -132,6 +141,26 @@ export function FleetPage() {
             value={form.type}
             onChange={(e) => setForm((prev) => ({ ...prev, type: e.target.value }))}
           />
+          <label>Crane Variant</label>
+          <small style={{ color: "#64748B" }}>Required for request matching</small>
+          <select
+            value={form.variantId}
+            onChange={(e) => setForm((prev) => ({ ...prev, variantId: e.target.value }))}
+            style={{
+              minHeight: 40,
+              border: "1px solid #CBD5E1",
+              borderRadius: 10,
+              padding: "0 10px",
+              background: "#fff",
+            }}
+          >
+            <option value="">Select variant</option>
+            {variants.map((variant) => (
+              <option key={variant.id} value={variant.id}>
+                {variant.name}
+              </option>
+            ))}
+          </select>
           <label>Capacity (tons)</label>
           <small style={{ color: "#64748B" }}>Optional</small>
           <Input
@@ -158,6 +187,10 @@ export function FleetPage() {
                   setModalError("Crane name is required.");
                   return;
                 }
+                if (!form.variantId) {
+                  setModalError("Crane variant is required.");
+                  return;
+                }
                 const reg = form.registration.trim();
                 if (reg) {
                   const duplicate = fleet.some(
@@ -174,6 +207,7 @@ export function FleetPage() {
                 const payload = {
                   name: form.name.trim(),
                   type: form.type.trim() || undefined,
+                  variantId: form.variantId,
                   capacityTons: form.capacityTons ? Number(form.capacityTons) : undefined,
                   registration: reg || undefined
                 };
@@ -188,7 +222,7 @@ export function FleetPage() {
                         ? prev.map((item) => (item.id === editingId ? next : item))
                         : [next, ...prev],
                     );
-                    setForm({ name: "", type: "", capacityTons: "", registration: "" });
+                    setForm({ name: "", type: "", variantId: "", capacityTons: "", registration: "" });
                     setEditingId(null);
                     setOpen(false);
                     setModalError("");
@@ -209,3 +243,4 @@ export function FleetPage() {
     </div>
   );
 }
+

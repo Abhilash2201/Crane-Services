@@ -85,6 +85,34 @@ async function initDb() {
   `;
 
   await sql`
+    CREATE TABLE IF NOT EXISTS owner_drivers (
+      owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      driver_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      PRIMARY KEY (owner_id, driver_id),
+      UNIQUE (driver_id)
+    )
+  `;
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS fleet (
+      id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+      owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      name TEXT NOT NULL,
+      type TEXT,
+      variant_id UUID REFERENCES crane_variants(id) ON DELETE SET NULL,
+      capacity_tons NUMERIC(10,2),
+      registration TEXT UNIQUE,
+      status TEXT NOT NULL DEFAULT 'active'
+        CHECK (status IN ('active','inactive','maintenance')),
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    )
+  `;
+
+  await sql`ALTER TABLE fleet ADD COLUMN IF NOT EXISTS variant_id UUID REFERENCES crane_variants(id) ON DELETE SET NULL`;
+
+  await sql`
     CREATE TABLE IF NOT EXISTS tracking_events (
       id BIGSERIAL PRIMARY KEY,
       job_id UUID NOT NULL REFERENCES jobs(id) ON DELETE CASCADE,

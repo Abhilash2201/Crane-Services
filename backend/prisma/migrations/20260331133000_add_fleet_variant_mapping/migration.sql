@@ -1,0 +1,3 @@
+ALTER TABLE fleet
+ADD COLUMN IF NOT EXISTS variant_id UUID REFERENCES crane_variants(id) ON DELETE SET NULL;
+

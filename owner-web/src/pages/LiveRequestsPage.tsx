@@ -4,12 +4,10 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
-import { Tabs } from "../components/ui/tabs";
 import { api } from "../lib/api";
 
 export function LiveRequestsPage() {
   const [variant, setVariant] = useState("All");
-  const [urgency, setUrgency] = useState("All");
   const [distance, setDistance] = useState("25");
   const [requests, setRequests] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -20,21 +18,26 @@ export function LiveRequestsPage() {
       .get("/owner/incoming-requests")
       .then((res) => setRequests(res.data?.data || []))
       .catch((err) =>
-        setError(err?.response?.data?.message || "Unable to load requests."),
+        setError(err?.response?.data?.message || "Unable to load requests.")
       )
       .finally(() => setLoading(false));
   }, []);
+
+  const variantOptions = useMemo(() => {
+    const labels = requests
+      .map((r) => r.variant_name)
+      .filter((value): value is string => Boolean(value));
+    return ["All", ...Array.from(new Set(labels))];
+  }, [requests]);
 
   const filtered = useMemo(
     () =>
       requests.filter(
         (r) =>
-          (variant === "All" ||
-            String(r.required_capacity_tons || "").includes(variant)) &&
-          (urgency === "All" || r.urgency === urgency) &&
-          (!r.distance || r.distance <= Number(distance)),
+          (variant === "All" || r.variant_name === variant) &&
+          (!r.distance || r.distance <= Number(distance))
       ),
-    [variant, urgency, distance],
+    [variant, distance, requests]
   );
 
   return (
@@ -42,6 +45,7 @@ export function LiveRequestsPage() {
       <h1>Live Requests</h1>
       {loading ? <small style={{ color: "#64748B" }}>Loading...</small> : null}
       {error ? <small style={{ color: "#DC2626" }}>{error}</small> : null}
+
       <div
         style={{
           display: "grid",
@@ -51,25 +55,31 @@ export function LiveRequestsPage() {
       >
         <div>
           <small>Variant</small>
-          <Tabs
-            options={["All", "25T", "50T", "100T", "Tower"]}
+          <select
             value={variant}
-            onChange={setVariant}
-          />
+            onChange={(event) => setVariant(event.target.value)}
+            style={{
+              width: "100%",
+              minHeight: 40,
+              border: "1px solid #CBD5E1",
+              borderRadius: 10,
+              padding: "0 10px",
+              background: "#fff",
+              marginTop: 4,
+            }}
+          >
+            {variantOptions.map((name) => (
+              <option key={name} value={name}>
+                {name}
+              </option>
+            ))}
+          </select>
         </div>
         <div>
           <small>Distance (km)</small>
           <Input
             value={distance}
             onChange={(e) => setDistance(e.target.value.replace(/\D/g, ""))}
-          />
-        </div>
-        <div>
-          <small>Urgency</small>
-          <Tabs
-            options={["All", "High", "Medium", "Low"]}
-            value={urgency}
-            onChange={setUrgency}
           />
         </div>
       </div>
@@ -112,7 +122,10 @@ export function LiveRequestsPage() {
               }}
             >
               <span>
-                <b>Required Capacity:</b> {item.required_capacity_tons || "—"}T
+                <b>Variant:</b> {item.variant_name || "-"}
+              </span>
+              <span>
+                <b>Required Capacity:</b> {item.required_capacity_tons || "-"}T
               </span>
               <span>
                 <b>Date/Time:</b>{" "}
@@ -121,7 +134,7 @@ export function LiveRequestsPage() {
                   : "ASAP"}
               </span>
               <span>
-                <b>Notes:</b> {item.notes || "—"}
+                <b>Notes:</b> {item.notes || "-"}
               </span>
             </div>
             <div
@@ -142,14 +155,14 @@ export function LiveRequestsPage() {
                     })
                     .then(() => {
                       setRequests((prev) =>
-                        prev.filter((r) => r.id !== item.id),
+                        prev.filter((r) => r.id !== item.id)
                       );
                     })
                     .catch((err) =>
                       setError(
                         err?.response?.data?.message ||
-                          "Unable to accept request.",
-                      ),
+                          "Unable to accept request."
+                      )
                     );
                 }}
               >
@@ -162,3 +175,4 @@ export function LiveRequestsPage() {
     </div>
   );
 }
+

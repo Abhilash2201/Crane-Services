@@ -36,6 +36,7 @@ const driverSearchSchema = z.object({
 const fleetCreateSchema = z.object({
   name: z.string().min(2),
   type: z.string().optional(),
+  variantId: z.string().uuid().optional(),
   capacityTons: z.coerce.number().positive().optional(),
   registration: z.string().min(3).optional(),
   status: z.enum(["active", "inactive", "maintenance"]).optional()
@@ -57,13 +58,24 @@ router.use(requireAuth, authorize("owner"));
 
 router.get(
   "/incoming-requests",
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
     const rows = await sql`
-      SELECT id, customer_id, pickup_address, drop_address, required_capacity_tons,
-             variant_id, scheduled_at, status, notes, created_at
-      FROM requests
-      WHERE status = 'pending'
-      ORDER BY created_at DESC
+      SELECT r.id, r.customer_id, r.pickup_address, r.drop_address, r.required_capacity_tons,
+             r.variant_id, v.name AS variant_name, r.scheduled_at, r.status, r.notes, r.created_at
+      FROM requests r
+      LEFT JOIN crane_variants v ON v.id = r.variant_id
+      WHERE r.status = 'pending'
+        AND (
+          r.variant_id IS NULL
+          OR EXISTS (
+            SELECT 1
+            FROM fleet f
+            WHERE f.owner_id = ${req.user.userId}
+              AND f.status = 'active'
+              AND f.variant_id = r.variant_id
+          )
+        )
+      ORDER BY r.created_at DESC
       LIMIT 50
     `;
     res.json({ success: true, data: rows });
@@ -195,6 +207,7 @@ router.post(
         SELECT id
         FROM requests
         WHERE id = ${payload.requestId}
+          AND (owner_id IS NULL OR owner_id = ${req.user.userId})
         LIMIT 1
       `;
       if (!requestRows.length) throw new HttpError(404, "Request not found");
@@ -244,6 +257,32 @@ router.post(
   "/accept-request",
   asyncHandler(async (req, res) => {
     const payload = acceptRequestSchema.parse(req.body);
+
+    const candidate = await sql`
+      SELECT variant_id
+      FROM requests
+      WHERE id = ${payload.requestId} AND status = 'pending'
+      LIMIT 1
+    `;
+    if (!candidate.length) throw new HttpError(404, "Pending request not found");
+
+    if (candidate[0].variant_id) {
+      const compatible = await sql`
+        SELECT 1
+        FROM fleet
+        WHERE owner_id = ${req.user.userId}
+          AND status = 'active'
+          AND variant_id = ${candidate[0].variant_id}
+        LIMIT 1
+      `;
+      if (!compatible.length) {
+        throw new HttpError(
+          400,
+          "No active crane in your fleet matches this request variant"
+        );
+      }
+    }
+
     const requestRow = await sql`
       UPDATE requests
       SET owner_id = ${req.user.userId},
@@ -301,10 +340,11 @@ router.get(
   "/fleet",
   asyncHandler(async (req, res) => {
     const rows = await sql`
-      SELECT *
-      FROM fleet
-      WHERE owner_id = ${req.user.userId}
-      ORDER BY created_at DESC
+      SELECT f.*, v.name AS variant_name
+      FROM fleet f
+      LEFT JOIN crane_variants v ON v.id = f.variant_id
+      WHERE f.owner_id = ${req.user.userId}
+      ORDER BY f.created_at DESC
     `;
     res.json({ success: true, data: rows });
   })
@@ -314,12 +354,21 @@ router.post(
   "/fleet",
   asyncHandler(async (req, res) => {
     const payload = fleetCreateSchema.parse(req.body);
+
+    if (payload.variantId) {
+      const variant = await sql`
+        SELECT id FROM crane_variants WHERE id = ${payload.variantId} AND is_active = true LIMIT 1
+      `;
+      if (!variant.length) throw new HttpError(400, "Selected crane variant is invalid");
+    }
+
     const rows = await sql`
-      INSERT INTO fleet (owner_id, name, type, capacity_tons, registration, status)
+      INSERT INTO fleet (owner_id, name, type, variant_id, capacity_tons, registration, status)
       VALUES (
         ${req.user.userId},
         ${payload.name},
         ${payload.type || null},
+        ${payload.variantId || null},
         ${payload.capacityTons || null},
         ${payload.registration || null},
         ${payload.status || "active"}
@@ -335,11 +384,20 @@ router.patch(
   asyncHandler(async (req, res) => {
     const payload = fleetUpdateSchema.parse(req.body);
     const { fleetId } = req.params;
+
+    if (payload.variantId) {
+      const variant = await sql`
+        SELECT id FROM crane_variants WHERE id = ${payload.variantId} AND is_active = true LIMIT 1
+      `;
+      if (!variant.length) throw new HttpError(400, "Selected crane variant is invalid");
+    }
+
     const rows = await sql`
       UPDATE fleet
       SET
         name = COALESCE(${payload.name}, name),
         type = COALESCE(${payload.type || null}, type),
+        variant_id = COALESCE(${payload.variantId || null}, variant_id),
         capacity_tons = COALESCE(${payload.capacityTons || null}, capacity_tons),
         registration = COALESCE(${payload.registration || null}, registration),
         status = COALESCE(${payload.status || null}, status),
