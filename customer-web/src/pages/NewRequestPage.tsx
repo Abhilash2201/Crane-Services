@@ -208,6 +208,13 @@ export function NewRequestPage() {
       return;
     }
 
+    const normalizedScheduledAt = (() => {
+      if (!scheduledAt) return undefined;
+      const dt = new Date(scheduledAt);
+      if (Number.isNaN(dt.getTime())) return undefined;
+      return dt.toISOString();
+    })();
+
     const payload = {
       pickupAddress: pickupAddress.trim(),
       dropAddress: dropAddress.trim() || undefined,
@@ -216,7 +223,7 @@ export function NewRequestPage() {
         ? Number(selectedVariant.capacity_tons)
         : undefined,
       durationHours: durationHours ? Number(durationHours) : undefined,
-      scheduledAt: scheduledAt || undefined,
+      scheduledAt: normalizedScheduledAt,
       notes: [
         loadDescription ? `Load: ${loadDescription}` : null,
         notes ? `Notes: ${notes}` : null,
@@ -443,4 +450,3 @@ export function NewRequestPage() {
     </Wizard>
   );
 }
-
