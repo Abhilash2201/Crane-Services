@@ -418,13 +418,34 @@ router.get(
   "/jobs",
   asyncHandler(async (req, res) => {
     const rows = await sql`
-      SELECT j.*, r.pickup_address, r.drop_address, r.status AS request_status
+      SELECT j.*, r.pickup_address, r.drop_address, r.status AS request_status,
+             d.name AS driver_name
       FROM jobs j
       JOIN requests r ON r.id = j.request_id
+      LEFT JOIN users d ON d.id = j.driver_id
       WHERE j.owner_id = ${req.user.userId}
       ORDER BY j.created_at DESC
     `;
     res.json({ success: true, data: rows });
+  })
+);
+
+router.patch(
+  "/jobs/:jobId/cancel",
+  asyncHandler(async (req, res) => {
+    const { jobId } = req.params;
+    const rows = await sql`
+      UPDATE jobs
+      SET status = 'cancelled', updated_at = now()
+      WHERE id = ${jobId}
+        AND owner_id = ${req.user.userId}
+        AND status = 'assigned'
+      RETURNING *
+    `;
+    if (!rows.length) throw new HttpError(404, "Job not found or cannot be cancelled at this stage");
+    const io = req.app.get("io");
+    io?.to(`job:${jobId}`).emit("job:status_changed", { jobId, status: "cancelled" });
+    res.json({ success: true, data: rows[0] });
   })
 );
 

@@ -286,9 +286,13 @@ router.get(
   "/users",
   asyncHandler(async (_req, res) => {
     const rows = await sql`
-      SELECT id, name, email, phone, role, is_active, created_at
-      FROM users
-      ORDER BY created_at DESC
+      SELECT u.id, u.name, u.email, u.phone, u.role, u.is_active, u.created_at,
+             o.id   AS owner_id,
+             o.name AS owner_name
+      FROM users u
+      LEFT JOIN owner_drivers od ON od.driver_id = u.id AND u.role = 'driver'
+      LEFT JOIN users o ON o.id = od.owner_id
+      ORDER BY u.role, o.name NULLS LAST, u.created_at DESC
       LIMIT 500
     `;
     res.json({ success: true, data: rows });
