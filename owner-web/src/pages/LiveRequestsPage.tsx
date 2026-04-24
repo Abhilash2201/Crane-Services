@@ -1,5 +1,7 @@
 import { MapPin } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+
+const sid = (id: string) => id.replace(/-/g, "").slice(0, 6).toUpperCase();
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
@@ -96,9 +98,23 @@ export function LiveRequestsPage() {
               }}
             >
               <div>
-                <h3 style={{ margin: "0 0 4px 0" }}>{item.id}</h3>
-                <p style={{ margin: 0, color: "#64748B" }}>
-                  Customer #{String(item.customer_id).slice(0, 8)}
+                <span
+                  style={{
+                    display: "inline-block",
+                    background: "#F1F5F9",
+                    color: "#475569",
+                    borderRadius: 6,
+                    padding: "2px 8px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    fontFamily: "monospace",
+                    marginBottom: 4,
+                  }}
+                >
+                  REQ-{sid(item.id)}
+                </span>
+                <p style={{ margin: 0, color: "#64748B", fontSize: 13 }}>
+                  {item.customer_name || `Customer #${sid(item.customer_id)}`}
                 </p>
               </div>
               <Badge variant="outline">Pending</Badge>

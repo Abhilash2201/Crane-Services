@@ -1,3 +1,4 @@
+import { Navigation } from "lucide-react";
 import { useEffect, useState } from "react";
 import {
   MapContainer,
@@ -87,12 +88,28 @@ export function MapScreen({
         {active ? (
           <Card>
             <strong>Active job</strong>
-            <p style={{ margin: "6px 0", color: "#334155" }}>
-              {active.id} | {active.variant}
-            </p>
-            <small style={{ color: "#64748B" }}>
+            <p style={{ margin: "6px 0 2px", color: "#334155", fontSize: 13 }}>
               {active.location || "Location pending"}
-            </small>
+            </p>
+            {active.location ? (
+              <a
+                href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(active.location)}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 6,
+                  marginTop: 8,
+                  color: "#FF6200",
+                  fontWeight: 700,
+                  fontSize: 13,
+                  textDecoration: "none",
+                }}
+              >
+                <Navigation size={14} /> Navigate to Pickup
+              </a>
+            ) : null}
           </Card>
         ) : null}
       </SafeArea>

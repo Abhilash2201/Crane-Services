@@ -61,9 +61,11 @@ router.get(
   asyncHandler(async (req, res) => {
     const rows = await sql`
       SELECT r.id, r.customer_id, r.pickup_address, r.drop_address, r.required_capacity_tons,
-             r.variant_id, v.name AS variant_name, r.scheduled_at, r.status, r.notes, r.created_at
+             r.variant_id, v.name AS variant_name, r.scheduled_at, r.status, r.notes, r.created_at,
+             u.name AS customer_name
       FROM requests r
       LEFT JOIN crane_variants v ON v.id = r.variant_id
+      LEFT JOIN users u ON u.id = r.customer_id
       WHERE r.status = 'pending'
         AND (
           r.variant_id IS NULL
@@ -86,10 +88,12 @@ router.get(
   "/accepted-requests",
   asyncHandler(async (req, res) => {
     const rows = await sql`
-      SELECT id, customer_id, pickup_address, drop_address, required_capacity_tons,
-             variant_id, scheduled_at, status, notes, created_at
-      FROM requests
-      WHERE status = 'accepted' AND owner_id = ${req.user.userId}
+      SELECT r.id, r.customer_id, r.pickup_address, r.drop_address, r.required_capacity_tons,
+             r.variant_id, r.scheduled_at, r.status, r.notes, r.created_at,
+             u.name AS customer_name
+      FROM requests r
+      LEFT JOIN users u ON u.id = r.customer_id
+      WHERE r.status = 'accepted' AND r.owner_id = ${req.user.userId}
       ORDER BY created_at DESC
       LIMIT 50
     `;

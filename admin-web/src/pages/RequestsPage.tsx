@@ -12,6 +12,8 @@ import { Modal } from "../components/ui/modal";
 import { createRealtimeSocket } from "../lib/realtime";
 import { api, authStore } from "../lib/api";
 
+const sid = (id: string) => id.replace(/-/g, "").slice(0, 6).toUpperCase();
+
 const statusVariant = (status: string) => {
   if (status === "completed") return "success" as const;
   if (status === "pending") return "warning" as const;
@@ -35,17 +37,17 @@ export function RequestsPage() {
 
     socket.on("tracking:updated", (payload) => {
       setLiveEvents((prev) =>
-        [`Tracking ping: ${payload.job_id}`, ...prev].slice(0, 6),
+        [`Tracking ping: JOB-${sid(payload.job_id)}`, ...prev].slice(0, 6),
       );
     });
     socket.on("job:status_changed", (payload) => {
       setLiveEvents((prev) =>
-        [`${payload.jobId} -> ${payload.status}`, ...prev].slice(0, 6),
+        [`JOB-${sid(payload.jobId)} → ${payload.status}`, ...prev].slice(0, 6),
       );
     });
     socket.on("request:accepted", (payload) => {
       setLiveEvents((prev) =>
-        [`Request accepted: ${payload.id}`, ...prev].slice(0, 6),
+        [`Request accepted: REQ-${sid(payload.id)}`, ...prev].slice(0, 6),
       );
     });
 
@@ -189,7 +191,19 @@ export function RequestsPage() {
                   <td
                     style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
                   >
-                    {row.id}
+                    <span
+                      style={{
+                        background: "#F1F5F9",
+                        color: "#475569",
+                        borderRadius: 6,
+                        padding: "2px 8px",
+                        fontSize: 11,
+                        fontWeight: 700,
+                        fontFamily: "monospace",
+                      }}
+                    >
+                      REQ-{sid(row.id)}
+                    </span>
                   </td>
                   <td
                     style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
@@ -234,7 +248,21 @@ export function RequestsPage() {
           {selected && (
             <div style={{ display: "grid", gap: 12 }}>
               <strong style={{ color: "#0A2540" }}>
-                {selected.id} - {selected.customer_name || "Customer"}
+                <span
+                  style={{
+                    background: "#F1F5F9",
+                    color: "#475569",
+                    borderRadius: 6,
+                    padding: "2px 8px",
+                    fontSize: 11,
+                    fontWeight: 700,
+                    fontFamily: "monospace",
+                    marginRight: 8,
+                  }}
+                >
+                  REQ-{sid(selected.id)}
+                </span>
+                {selected.customer_name || "Customer"}
               </strong>
               <div style={{ color: "#334155", fontSize: 14 }}>
                 Required Capacity:{" "}

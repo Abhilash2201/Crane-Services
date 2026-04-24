@@ -1,4 +1,6 @@
-import { Camera, CheckCircle2, Phone, Waypoints, WifiOff } from "lucide-react";
+import { Camera, CheckCircle2, Navigation, Phone, Waypoints, WifiOff } from "lucide-react";
+
+const sid = (id: string) => id.replace(/-/g, "").slice(0, 6).toUpperCase();
 import { useEffect, useRef, useState } from "react";
 import { useTheme } from "styled-components";
 import {
@@ -128,9 +130,43 @@ export function ActiveJobScreen({
           <h2 style={{ margin: "4px 0" }}>
             {hh}:{mm}:{ss}
           </h2>
-          <small>
-            {job.id} | {job.variant}
-          </small>
+          <div
+            style={{
+              display: "flex",
+              gap: 6,
+              alignItems: "center",
+              flexWrap: "wrap",
+              marginTop: 4,
+            }}
+          >
+            <span
+              style={{
+                background: "#F1F5F9",
+                color: "#475569",
+                borderRadius: 6,
+                padding: "2px 8px",
+                fontSize: 11,
+                fontWeight: 700,
+                fontFamily: "monospace",
+              }}
+            >
+              JOB-{sid(job.id)}
+            </span>
+            <span
+              style={{
+                background: "#FFF7ED",
+                color: "#9A3412",
+                borderRadius: 6,
+                padding: "2px 8px",
+                fontSize: 11,
+                fontWeight: 700,
+                fontFamily: "monospace",
+                textTransform: "uppercase",
+              }}
+            >
+              {job.variant}
+            </span>
+          </div>
         </Card>
         <TwoCol>
           <Action>
@@ -140,6 +176,18 @@ export function ActiveJobScreen({
             <Waypoints size={16} /> WhatsApp
           </Action>
         </TwoCol>
+        {job.location ? (
+          <a
+            href={`https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(job.location)}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ textDecoration: "none" }}
+          >
+            <Action $tone="success" as="div">
+              <Navigation size={16} /> Navigate to Pickup
+            </Action>
+          </a>
+        ) : null}
         <Action
           disabled={disabled}
           onClick={() => {
