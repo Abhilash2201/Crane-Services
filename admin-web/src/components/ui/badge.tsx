@@ -1,44 +1,49 @@
+import { Tag } from "primereact/tag";
 import type { HTMLAttributes } from "react";
-import styled, { css } from "styled-components";
 
 type Variant = "default" | "success" | "danger" | "warning" | "info";
 
-const pillStyles = {
-  default: css`
-    background: #eef2f7;
-    color: #334155;
-  `,
-  success: css`
-    background: #e8fbe9;
-    color: #15803d;
-  `,
-  danger: css`
-    background: #fee2e2;
-    color: #b91c1c;
-  `,
-  warning: css`
-    background: #fef3c7;
-    color: #b45309;
-  `,
-  info: css`
-    background: #e0f2fe;
-    color: #0c4a6e;
-  `,
+const severityMap: Record<
+  Exclude<Variant, "default">,
+  "success" | "info" | "warning" | "danger"
+> = {
+  success: "success",
+  danger: "danger",
+  warning: "warning",
+  info: "info",
 };
 
-const StyledBadge = styled.span<{ $variant: Variant }>`
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 4px 10px;
-  font-size: 12px;
-  font-weight: 700;
-  ${({ $variant }) => pillStyles[$variant]}
-`;
+const defaultStyle = {
+  background: "#eef2f7",
+  color: "#334155",
+  borderRadius: "999px",
+  fontSize: "12px",
+  fontWeight: 700,
+  padding: "4px 10px",
+} as const;
 
 export function Badge({
   variant = "default",
-  ...props
+  children,
+  style,
+  className,
 }: HTMLAttributes<HTMLSpanElement> & { variant?: Variant }) {
-  return <StyledBadge $variant={variant} {...props} />;
+  if (variant === "default") {
+    return (
+      <span style={{ display: "inline-flex", alignItems: "center", ...defaultStyle, ...style }} className={className}>
+        {children}
+      </span>
+    );
+  }
+
+  return (
+    <Tag
+      severity={severityMap[variant]}
+      value={typeof children === "string" ? children : undefined}
+      style={{ borderRadius: "999px", ...style }}
+      className={className}
+    >
+      {typeof children !== "string" ? children : null}
+    </Tag>
+  );
 }

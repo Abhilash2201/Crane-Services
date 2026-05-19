@@ -1,17 +1,58 @@
-import styled, { css } from "styled-components";
+import { Tag } from "primereact/tag";
+import type { HTMLAttributes } from "react";
 
 type BadgeVariant = "default" | "success" | "warning" | "outline";
 
-const StyledBadge = styled.span<{ $variant: BadgeVariant }>`
-  display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 700;
-  ${({ theme, $variant }) => {
-    if ($variant === "success") return css`background: #dcfce7; color: #166534;`;
-    if ($variant === "warning") return css`background: #fef3c7; color: #92400e;`;
-    if ($variant === "outline") return css`border: 1px solid ${theme.colors.border}; color: ${theme.colors.navy};`;
-    return css`background: #ffedd5; color: ${theme.colors.primary};`;
-  }}
-`;
+export function Badge({
+  children,
+  variant = "default",
+  style,
+  className,
+}: HTMLAttributes<HTMLSpanElement> & { variant?: BadgeVariant; children?: React.ReactNode }) {
+  if (variant === "outline") {
+    return (
+      <span
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          gap: "6px",
+          border: "1px solid #e2e8f0",
+          color: "#0A2540",
+          borderRadius: "999px",
+          padding: "4px 10px",
+          fontSize: "12px",
+          fontWeight: 700,
+          ...style,
+        }}
+        className={className}
+      >
+        {children}
+      </span>
+    );
+  }
 
-export function Badge({ children, variant = "default" }: { children: React.ReactNode; variant?: BadgeVariant }) {
-  return <StyledBadge $variant={variant}>{children}</StyledBadge>;
+  if (variant === "default") {
+    return (
+      <Tag
+        value={typeof children === "string" ? children : undefined}
+        style={{ background: "#ffedd5", color: "#FF6200", borderRadius: "999px", ...style }}
+        className={className}
+      >
+        {typeof children !== "string" ? children : null}
+      </Tag>
+    );
+  }
+
+  const severityMap = { success: "success", warning: "warning" } as const;
+
+  return (
+    <Tag
+      severity={severityMap[variant]}
+      value={typeof children === "string" ? children : undefined}
+      style={{ borderRadius: "999px", ...style }}
+      className={className}
+    >
+      {typeof children !== "string" ? children : null}
+    </Tag>
+  );
 }

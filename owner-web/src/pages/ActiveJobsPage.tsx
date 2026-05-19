@@ -1,39 +1,122 @@
-import { MapPin, UserRound } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { ExternalLink, MapPin, UserRound } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { Sidebar } from "primereact/sidebar";
 import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
-import { Card, CardContent } from "../components/ui/card";
+import { AppDataTable, type ColumnDef } from "../components/ui/datatable";
 import { createRealtimeSocket } from "../lib/realtime";
 import { api } from "../lib/api";
 
 const sid = (id: string) => id.replace(/-/g, "").slice(0, 6).toUpperCase();
 
-function tone(status: string) {
+type Job = {
+  id: string;
+  request_id: string;
+  status: string;
+  pickup_address: string;
+  driver_id: string | null;
+  driver_name: string | null;
+  crane_registration: string | null;
+};
+
+type PanelMode = "idle" | "reassign" | "cancel";
+
+function statusVariant(status: string): "warning" | "success" | "danger" | "default" {
   if (status === "working" || status === "en_route") return "warning";
   if (status === "completed") return "success";
   if (status === "cancelled") return "danger";
   return "default";
 }
 
+const JobIdPill = ({ id }: { id: string }) => (
+  <span
+    style={{
+      background: "#F1F5F9",
+      color: "#475569",
+      borderRadius: 6,
+      padding: "2px 8px",
+      fontSize: 11,
+      fontWeight: 700,
+      fontFamily: "monospace",
+    }}
+  >
+    JOB-{sid(id)}
+  </span>
+);
+
+const CranePill = ({ reg }: { reg: string | null }) =>
+  reg ? (
+    <span
+      style={{
+        background: "#FFF7ED",
+        color: "#9A3412",
+        borderRadius: 6,
+        padding: "2px 8px",
+        fontSize: 11,
+        fontWeight: 700,
+        fontFamily: "monospace",
+        textTransform: "uppercase",
+      }}
+    >
+      {reg}
+    </span>
+  ) : (
+    <span style={{ color: "#94A3B8" }}>—</span>
+  );
+
+function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div
+      style={{
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start",
+        fontSize: 14,
+        gap: 12,
+        padding: "6px 0",
+        borderBottom: "1px solid #F1F5F9",
+      }}
+    >
+      <span style={{ color: "#64748B", flexShrink: 0 }}>{label}</span>
+      <span style={{ color: "#0A2540", fontWeight: 600, textAlign: "right" }}>{value}</span>
+    </div>
+  );
+}
+
+const filterSelectStyle: React.CSSProperties = {
+  minHeight: 40,
+  border: "1px solid #CBD5E1",
+  borderRadius: 10,
+  padding: "0 10px",
+  background: "#fff",
+  fontSize: 14,
+  color: "#0f172a",
+};
+
 export function ActiveJobsPage() {
-  const [liveEvents, setLiveEvents] = useState<string[]>([]);
-  const [jobs, setJobs] = useState<any[]>([]);
+  const [jobs, setJobs] = useState<Job[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
   const [fleet, setFleet] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [liveEvents, setLiveEvents] = useState<string[]>([]);
 
-  const [reassigning, setReassigning] = useState<string | null>(null);
-  const [cancelling, setCancelling] = useState<string | null>(null);
-  const [selection, setSelection] = useState<
-    Record<string, { driverId?: string; craneRegistration?: string }>
-  >({});
+  const [selected, setSelected] = useState<Job | null>(null);
+  const [statusFilter, setStatusFilter] = useState("All");
+  const [panelMode, setPanelMode] = useState<PanelMode>("idle");
+  const [driverChoice, setDriverChoice] = useState("");
+  const [craneChoice, setCraneChoice] = useState("");
+  const [actionLoading, setActionLoading] = useState(false);
+
+  // keep selected in sync with live job updates
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
 
   useEffect(() => {
     const socket = createRealtimeSocket();
 
-    socket.on("dispatch:job_assigned", (payload) => {
+    socket.on("dispatch:job_assigned", (payload: any) => {
       setLiveEvents((prev) =>
         [`Driver assigned: JOB-${sid(payload.request_id || payload.id)}`, ...prev].slice(0, 5)
       );
@@ -46,7 +129,7 @@ export function ActiveJobsPage() {
       );
     });
 
-    socket.on("job:status_changed", (payload) => {
+    socket.on("job:status_changed", (payload: any) => {
       setLiveEvents((prev) =>
         [`JOB-${sid(payload.jobId)} → ${payload.status}`, ...prev].slice(0, 5)
       );
@@ -59,6 +142,14 @@ export function ActiveJobsPage() {
       socket.disconnect();
     };
   }, []);
+
+  // sync sidebar's selected job when jobs state changes (live updates)
+  useEffect(() => {
+    const cur = selectedRef.current;
+    if (!cur) return;
+    const latest = jobs.find((j) => j.id === cur.id);
+    if (latest && latest !== cur) setSelected(latest);
+  }, [jobs]);
 
   useEffect(() => {
     Promise.all([
@@ -95,284 +186,409 @@ export function ActiveJobsPage() {
     [fleet]
   );
 
-  const handleReassign = async (jobId: string, requestId: string) => {
-    const choice = selection[jobId] || {};
-    if (!choice.driverId || !choice.craneRegistration) {
-      setError("Select a driver and crane to reassign.");
+  const filtered = useMemo(
+    () =>
+      statusFilter === "All"
+        ? jobs
+        : jobs.filter((j) => j.status === statusFilter),
+    [jobs, statusFilter]
+  );
+
+  const handleOpenRow = (job: Job) => {
+    setSelected(job);
+    setPanelMode("idle");
+    setDriverChoice("");
+    setCraneChoice("");
+    setError("");
+  };
+
+  const handleReassign = async () => {
+    if (!selected || !driverChoice || !craneChoice) {
+      setError("Select both a driver and a crane.");
       return;
     }
+    setActionLoading(true);
+    setError("");
     try {
       await api.post("/owner/assign-driver", {
-        requestId,
-        driverId: choice.driverId,
-        craneRegistration: choice.craneRegistration,
+        requestId: selected.request_id,
+        driverId: driverChoice,
+        craneRegistration: craneChoice,
       });
+      const driverName = drivers.find((d) => d.id === driverChoice)?.name || "";
       setJobs((prev) =>
         prev.map((j) =>
-          j.id === jobId
-            ? {
-                ...j,
-                driver_id: choice.driverId,
-                crane_registration: choice.craneRegistration,
-                driver_name: drivers.find((d) => d.id === choice.driverId)?.name || "",
-              }
+          j.id === selected.id
+            ? { ...j, driver_id: driverChoice, crane_registration: craneChoice, driver_name: driverName }
             : j
         )
       );
-      setReassigning(null);
-      setSelection((prev) => { const next = { ...prev }; delete next[jobId]; return next; });
+      setPanelMode("idle");
+      setDriverChoice("");
+      setCraneChoice("");
     } catch (err: any) {
       setError(err?.response?.data?.message || "Unable to reassign driver.");
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  const handleCancel = async (jobId: string) => {
+  const handleCancel = async () => {
+    if (!selected) return;
+    setActionLoading(true);
+    setError("");
     try {
-      await api.patch(`/owner/jobs/${jobId}/cancel`);
+      await api.patch(`/owner/jobs/${selected.id}/cancel`);
       setJobs((prev) =>
-        prev.map((j) => (j.id === jobId ? { ...j, status: "cancelled" } : j))
+        prev.map((j) => (j.id === selected.id ? { ...j, status: "cancelled" } : j))
       );
-      setCancelling(null);
+      setPanelMode("idle");
     } catch (err: any) {
       setError(err?.response?.data?.message || "Unable to cancel job.");
+    } finally {
+      setActionLoading(false);
     }
   };
+
+  const columns: ColumnDef<Job>[] = [
+    {
+      field: "id",
+      header: "Job ID",
+      body: (row) => <JobIdPill id={row.id} />,
+      width: "110px",
+    },
+    {
+      field: "pickup_address",
+      header: "Pickup Address",
+      body: (row) => (
+        <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <MapPin size={12} style={{ color: "#FF6200", flexShrink: 0 }} />
+          <span
+            style={{
+              maxWidth: 220,
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {row.pickup_address || "—"}
+          </span>
+        </span>
+      ),
+    },
+    {
+      field: "driver_name",
+      header: "Driver",
+      sortable: true,
+      body: (row) => (
+        <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+          <UserRound size={12} style={{ color: "#64748B" }} />
+          {row.driver_name || <span style={{ color: "#94A3B8" }}>Unassigned</span>}
+        </span>
+      ),
+    },
+    {
+      field: "crane_registration",
+      header: "Crane",
+      body: (row) => <CranePill reg={row.crane_registration} />,
+      width: "130px",
+    },
+    {
+      field: "status",
+      header: "Status",
+      sortable: true,
+      body: (row) => (
+        <Badge variant={statusVariant(row.status)}>
+          {row.status.replace(/_/g, " ")}
+        </Badge>
+      ),
+      width: "130px",
+    },
+  ];
+
+  const filtersSlot = (
+    <select
+      value={statusFilter}
+      onChange={(e) => setStatusFilter(e.target.value)}
+      style={filterSelectStyle}
+      aria-label="Filter by status"
+    >
+      <option value="All">All Statuses</option>
+      <option value="assigned">Assigned</option>
+      <option value="en_route">En Route</option>
+      <option value="working">Working</option>
+      <option value="completed">Completed</option>
+      <option value="cancelled">Cancelled</option>
+    </select>
+  );
+
+  const navUrl = selected?.pickup_address
+    ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
+        selected.pickup_address
+      )}`
+    : null;
+
+  const isAssigned = selected?.status === "assigned";
+
+  const sidebarHeader = selected ? (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <JobIdPill id={selected.id} />
+      <Badge variant={statusVariant(selected.status)}>
+        {selected.status.replace(/_/g, " ")}
+      </Badge>
+    </div>
+  ) : null;
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
-      <h1>My Active Jobs</h1>
-      {loading ? <small style={{ color: "#64748B" }}>Loading...</small> : null}
+      <h1 style={{ margin: 0 }}>Active Jobs</h1>
       {error ? <small style={{ color: "#DC2626" }}>{error}</small> : null}
 
       {liveEvents.length ? (
-        <Card>
-          <CardContent style={{ display: "grid", gap: 6 }}>
-            <strong>Live Updates</strong>
-            {liveEvents.map((event) => (
-              <small key={event} style={{ color: "#334155" }}>
-                {event}
-              </small>
-            ))}
-          </CardContent>
-        </Card>
+        <div
+          style={{
+            background: "#F8FAFC",
+            border: "1px solid #E2E8F0",
+            borderRadius: 10,
+            padding: "8px 12px",
+            display: "flex",
+            flexWrap: "wrap",
+            gap: "6px 18px",
+          }}
+        >
+          <strong style={{ fontSize: 12, color: "#0A2540", alignSelf: "center" }}>
+            Live
+          </strong>
+          {liveEvents.map((evt) => (
+            <small key={evt} style={{ color: "#334155" }}>
+              {evt}
+            </small>
+          ))}
+        </div>
       ) : null}
 
-      {!loading && !jobs.length ? (
-        <Card>
-          <CardContent>
-            <small style={{ color: "#64748B" }}>No jobs found.</small>
-          </CardContent>
-        </Card>
-      ) : null}
+      <div
+        style={{
+          width: selected ? "calc(100% - 460px)" : "100%",
+          transition: "width 0.3s ease",
+          overflow: "hidden",
+          minWidth: 0,
+        }}
+      >
+        <AppDataTable
+          data={filtered}
+          columns={columns}
+          loading={loading}
+          onRowClick={handleOpenRow}
+          searchable
+          searchPlaceholder="Search address or driver..."
+          searchFields={["pickup_address", "driver_name", "crane_registration"]}
+          filters={filtersSlot}
+          emptyMessage="No jobs match the selected filter."
+          pageSize={15}
+        />
+      </div>
 
-      {jobs.map((job) => {
-        const isAssigned = job.status === "assigned";
-        const isReassigning = reassigning === job.id;
-        const isCancelling = cancelling === job.id;
-
-        return (
-          <Card key={job.id}>
-            <CardContent style={{ display: "grid", gap: 10 }}>
-              {/* Header */}
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: 10,
-                  flexWrap: "wrap",
-                  alignItems: "flex-start",
-                }}
-              >
-                <div style={{ display: "grid", gap: 4 }}>
-                  <span
-                    style={{
-                      background: "#F1F5F9",
-                      color: "#475569",
-                      borderRadius: 6,
-                      padding: "2px 8px",
-                      fontSize: 11,
-                      fontWeight: 700,
-                      fontFamily: "monospace",
-                      display: "inline-block",
-                    }}
-                  >
-                    JOB-{sid(job.id)}
-                  </span>
-                  <p style={{ margin: 0, color: "#64748B", fontSize: 13 }}>
-                    <MapPin size={12} style={{ verticalAlign: "middle" }} />{" "}
-                    {job.pickup_address || "—"}
-                  </p>
-                </div>
-                <Badge variant={tone(job.status) as any}>{job.status.replace("_", " ")}</Badge>
-              </div>
-
-              {/* Driver + Crane info */}
-              <div
-                style={{
-                  display: "flex",
-                  gap: 12,
-                  flexWrap: "wrap",
-                  fontSize: 13,
-                  color: "#334155",
-                }}
-              >
-                <span>
-                  <UserRound size={13} style={{ verticalAlign: "middle" }} />{" "}
-                  <b>Driver:</b> {job.driver_name || "—"}
-                </span>
-                <span>
-                  <b>Crane:</b>{" "}
-                  {job.crane_registration ? (
-                    <span
-                      style={{
-                        background: "#FFF7ED",
-                        color: "#9A3412",
-                        borderRadius: 6,
-                        padding: "1px 7px",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        fontFamily: "monospace",
-                        textTransform: "uppercase",
-                      }}
-                    >
-                      {job.crane_registration}
+      <Sidebar
+        visible={Boolean(selected)}
+        onHide={() => { setSelected(null); setPanelMode("idle"); }}
+        position="right"
+        style={{ width: "min(460px, 100vw)" }}
+        header={sidebarHeader}
+      >
+        {selected ? (
+          <div style={{ display: "grid", gap: 20, padding: "4px 0" }}>
+            {/* Details */}
+            <section>
+              <DetailRow
+                label="Driver"
+                value={
+                  selected.driver_name ? (
+                    <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
+                      <UserRound size={13} />
+                      {selected.driver_name}
                     </span>
                   ) : (
-                    "—"
-                  )}
-                </span>
-              </div>
+                    <span style={{ color: "#94A3B8" }}>Unassigned</span>
+                  )
+                }
+              />
+              <DetailRow label="Crane" value={<CranePill reg={selected.crane_registration} />} />
+              <DetailRow
+                label="Status"
+                value={
+                  <Badge variant={statusVariant(selected.status)}>
+                    {selected.status.replace(/_/g, " ")}
+                  </Badge>
+                }
+              />
+            </section>
 
-              {/* Reassign form (inline, only when reassigning this job) */}
-              {isReassigning ? (
+            {/* Address card */}
+            <div
+              style={{
+                background: "#F8FAFC",
+                border: "1px solid #E2E8F0",
+                borderRadius: 10,
+                padding: "12px 14px",
+                display: "flex",
+                gap: 10,
+                alignItems: "flex-start",
+              }}
+            >
+              <MapPin
+                size={16}
+                style={{ color: "#FF6200", marginTop: 2, flexShrink: 0 }}
+              />
+              <div>
                 <div
-                  style={{
-                    display: "grid",
-                    gap: 8,
-                    padding: 12,
-                    background: "#F8FAFC",
-                    borderRadius: 10,
-                    border: "1px solid #E2E8F0",
-                  }}
+                  style={{ fontWeight: 600, color: "#0A2540", fontSize: 14, lineHeight: 1.4 }}
                 >
-                  <strong style={{ fontSize: 13 }}>Reassign Driver</strong>
-                  <select
-                    value={selection[job.id]?.driverId || ""}
-                    onChange={(e) =>
-                      setSelection((prev) => ({
-                        ...prev,
-                        [job.id]: { ...prev[job.id], driverId: e.target.value },
-                      }))
-                    }
+                  {selected.pickup_address || "Address not provided"}
+                </div>
+                {navUrl ? (
+                  <a
+                    href={navUrl}
+                    target="_blank"
+                    rel="noreferrer"
                     style={{
-                      padding: "10px",
-                      borderRadius: 10,
-                      border: "1px solid #E2E8F0",
-                      background: "#fff",
+                      fontSize: 12,
+                      color: "#FF6200",
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 4,
+                      marginTop: 6,
+                      textDecoration: "none",
                     }}
                   >
-                    <option value="">Select new driver</option>
-                    {driverOptions.map((d) => (
-                      <option key={d.id} value={d.id}>
-                        {d.label}
-                      </option>
-                    ))}
-                  </select>
-                  <select
-                    value={selection[job.id]?.craneRegistration || ""}
-                    onChange={(e) =>
-                      setSelection((prev) => ({
-                        ...prev,
-                        [job.id]: { ...prev[job.id], craneRegistration: e.target.value },
-                      }))
-                    }
-                    style={{
-                      padding: "10px",
-                      borderRadius: 10,
-                      border: "1px solid #E2E8F0",
-                      background: "#fff",
-                    }}
-                  >
-                    <option value="">Select crane</option>
-                    {fleetOptions.map((f) => (
-                      <option key={f.registration || f.label} value={f.registration || ""}>
-                        {f.label}
-                      </option>
-                    ))}
-                  </select>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <Button onClick={() => handleReassign(job.id, job.request_id)}>
-                      Confirm Reassign
-                    </Button>
-                    <Button variant="ghost" onClick={() => setReassigning(null)}>
-                      Cancel
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Cancel confirmation (inline) */}
-              {isCancelling ? (
-                <div
-                  style={{
-                    display: "grid",
-                    gap: 8,
-                    padding: 12,
-                    background: "#FFF1F2",
-                    borderRadius: 10,
-                    border: "1px solid #FECDD3",
-                  }}
-                >
-                  <strong style={{ fontSize: 13, color: "#9F1239" }}>
-                    Cancel this job?
-                  </strong>
-                  <small style={{ color: "#64748B" }}>
-                    This will mark the job as cancelled and notify the driver. Only possible while the driver hasn't started moving.
-                  </small>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <Button variant="outline" onClick={() => handleCancel(job.id)}>
-                      Yes, Cancel Job
-                    </Button>
-                    <Button variant="ghost" onClick={() => setCancelling(null)}>
-                      Keep Job
-                    </Button>
-                  </div>
-                </div>
-              ) : null}
-
-              {/* Action buttons */}
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <Link to={`/tracking/${job.request_id}`}>
-                  <Button variant="outline">Open Tracking</Button>
-                </Link>
-                {isAssigned && !isReassigning && !isCancelling ? (
-                  <>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setReassigning(job.id);
-                        setCancelling(null);
-                      }}
-                    >
-                      Reassign Driver
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => {
-                        setCancelling(job.id);
-                        setReassigning(null);
-                      }}
-                      style={{ color: "#DC2626", borderColor: "#FECDD3" }}
-                    >
-                      Cancel Job
-                    </Button>
-                  </>
+                    <ExternalLink size={11} /> Open in Google Maps
+                  </a>
                 ) : null}
               </div>
-            </CardContent>
-          </Card>
-        );
-      })}
+            </div>
+
+            {/* Primary action */}
+            <Link to={`/tracking/${selected.request_id}`} style={{ textDecoration: "none" }}>
+              <Button variant="outline" style={{ width: "100%" }}>
+                Open Live Tracking
+              </Button>
+            </Link>
+
+            {/* Reassign / Cancel — only for assigned jobs */}
+            {isAssigned && panelMode === "idle" ? (
+              <div style={{ display: "flex", gap: 8 }}>
+                <Button
+                  variant="outline"
+                  style={{ flex: 1 }}
+                  onClick={() => setPanelMode("reassign")}
+                >
+                  Reassign Driver
+                </Button>
+                <Button
+                  variant="outline"
+                  style={{ flex: 1, color: "#DC2626", borderColor: "#FECDD3" }}
+                  onClick={() => setPanelMode("cancel")}
+                >
+                  Cancel Job
+                </Button>
+              </div>
+            ) : null}
+
+            {/* Reassign panel */}
+            {panelMode === "reassign" ? (
+              <div
+                style={{
+                  display: "grid",
+                  gap: 10,
+                  padding: 14,
+                  background: "#F8FAFC",
+                  borderRadius: 10,
+                  border: "1px solid #E2E8F0",
+                }}
+              >
+                <strong style={{ fontSize: 13, color: "#0A2540" }}>Reassign Driver</strong>
+                <select
+                  value={driverChoice}
+                  onChange={(e) => setDriverChoice(e.target.value)}
+                  style={filterSelectStyle}
+                >
+                  <option value="">Select new driver</option>
+                  {driverOptions.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.label}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  value={craneChoice}
+                  onChange={(e) => setCraneChoice(e.target.value)}
+                  style={filterSelectStyle}
+                >
+                  <option value="">Select crane</option>
+                  {fleetOptions.map((f) => (
+                    <option key={f.registration || f.label} value={f.registration || ""}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Button
+                    style={{ flex: 1 }}
+                    disabled={actionLoading}
+                    onClick={handleReassign}
+                  >
+                    {actionLoading ? "Saving..." : "Confirm Reassign"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setPanelMode("idle")}
+                    disabled={actionLoading}
+                  >
+                    Back
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+
+            {/* Cancel panel */}
+            {panelMode === "cancel" ? (
+              <div
+                style={{
+                  display: "grid",
+                  gap: 10,
+                  padding: 14,
+                  background: "#FFF1F2",
+                  borderRadius: 10,
+                  border: "1px solid #FECDD3",
+                }}
+              >
+                <strong style={{ fontSize: 13, color: "#9F1239" }}>Cancel this job?</strong>
+                <small style={{ color: "#64748B", lineHeight: 1.5 }}>
+                  This will mark the job as cancelled and notify the driver. Only
+                  possible while the driver hasn't started moving.
+                </small>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Button
+                    variant="outline"
+                    style={{ flex: 1, color: "#DC2626", borderColor: "#FECDD3" }}
+                    disabled={actionLoading}
+                    onClick={handleCancel}
+                  >
+                    {actionLoading ? "Cancelling..." : "Yes, Cancel Job"}
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={() => setPanelMode("idle")}
+                    disabled={actionLoading}
+                  >
+                    Keep Job
+                  </Button>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </Sidebar>
     </div>
   );
 }

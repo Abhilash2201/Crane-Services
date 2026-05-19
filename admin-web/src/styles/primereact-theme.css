@@ -1,0 +1,157 @@
+/* Override PrimeReact Lara theme with CraneHub brand tokens */
+:root {
+  --primary-color: #FF6200;
+  --primary-color-text: #ffffff;
+  --primary-50: #fff7f0;
+  --primary-100: #ffe4cc;
+  --primary-200: #ffcba0;
+  --primary-300: #ffae70;
+  --primary-400: #ff8c40;
+  --primary-500: #FF6200;
+  --primary-600: #e05500;
+  --primary-700: #b34300;
+  --primary-800: #803100;
+  --primary-900: #4d1d00;
+
+  /* Surface / neutral */
+  --surface-0: #ffffff;
+  --surface-50: #f8fafc;
+  --surface-100: #f1f5f9;
+  --surface-200: #e2e8f0;
+  --surface-300: #cbd5e1;
+  --surface-400: #94a3b8;
+  --surface-500: #64748b;
+  --surface-600: #475569;
+  --surface-700: #334155;
+  --surface-800: #1e293b;
+  --surface-900: #0f172a;
+
+  --text-color: #0f172a;
+  --text-color-secondary: #64748b;
+  --border-radius: 10px;
+  --font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+
+  /* Tab menu */
+  --tabmenu-tab-active-border-color: #FF6200;
+  --tabmenu-tab-active-text-color: #FF6200;
+}
+
+/* Ensure full-width inputs */
+.p-inputtext {
+  width: 100%;
+  min-height: 40px;
+  font-family: var(--font-family);
+}
+
+/* Tab menu strip */
+.p-tabmenu .p-tabmenu-nav {
+  border-bottom: 2px solid #e2e8f0;
+  background: transparent;
+  padding: 0;
+  gap: 0;
+}
+
+.p-tabmenu .p-tabmenu-nav .p-tabmenuitem .p-menuitem-link {
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  border-radius: 0;
+  background: transparent;
+  color: #64748b;
+  font-weight: 600;
+  font-size: 13px;
+  padding: 10px 16px;
+}
+
+.p-tabmenu .p-tabmenu-nav .p-tabmenuitem.p-highlight .p-menuitem-link {
+  border-bottom-color: #FF6200;
+  color: #FF6200;
+  background: transparent;
+}
+
+.p-tabmenu .p-tabmenu-nav .p-tabmenuitem .p-menuitem-link:not(.p-disabled):focus {
+  box-shadow: none;
+}
+
+/* Dialog */
+.p-dialog .p-dialog-header {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 16px 20px 12px;
+  font-weight: 700;
+  color: #0A2540;
+}
+
+.p-dialog .p-dialog-content {
+  padding: 16px 20px;
+}
+
+/* Remove focus ring on buttons */
+.p-button:focus {
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px rgba(255, 98, 0, 0.3);
+}
+
+/* DataTable */
+.p-datatable .p-datatable-thead > tr > th {
+  background: #f8fafc;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  border-bottom: 2px solid #e2e8f0;
+  padding: 10px 12px;
+}
+
+.p-datatable .p-datatable-tbody > tr > td {
+  padding: 10px 12px;
+  font-size: 14px;
+  border-bottom: 1px solid #f1f5f9;
+  color: #334155;
+}
+
+.p-datatable .p-datatable-tbody > tr:hover > td {
+  background: #fff8f3 !important;
+}
+
+.p-datatable .p-datatable-tbody > tr.p-row-odd > td {
+  background: #fafbfc;
+}
+
+.p-datatable .p-sortable-column:hover {
+  background: #f1f5f9 !important;
+}
+
+.p-datatable .p-sortable-column.p-highlight {
+  color: #FF6200 !important;
+}
+
+.p-datatable .p-sortable-column.p-highlight .p-sortable-column-icon {
+  color: #FF6200 !important;
+}
+
+.p-paginator {
+  border-top: 1px solid #e2e8f0;
+  background: transparent;
+  padding: 10px 0 0;
+  font-size: 13px;
+}
+
+.p-paginator .p-paginator-page.p-highlight {
+  background: #FF6200;
+  color: #fff;
+  border-color: #FF6200;
+}
+
+/* Sidebar (detail panel) */
+.p-sidebar .p-sidebar-header {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 14px 16px 12px;
+}
+
+.p-sidebar .p-sidebar-content {
+  padding: 16px;
+}
+
+.p-sidebar-right {
+  box-shadow: -4px 0 24px rgba(10, 37, 64, 0.12);
+}
