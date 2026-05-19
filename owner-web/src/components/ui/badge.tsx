@@ -1,7 +1,7 @@
 import { Tag } from "primereact/tag";
 import type { HTMLAttributes } from "react";
 
-type BadgeVariant = "default" | "success" | "warning" | "outline";
+type BadgeVariant = "default" | "success" | "warning" | "danger" | "outline";
 
 export function Badge({
   children,
@@ -43,7 +43,7 @@ export function Badge({
     );
   }
 
-  const severityMap = { success: "success", warning: "warning" } as const;
+  const severityMap = { success: "success", warning: "warning", danger: "danger" } as const;
 
   return (
     <Tag

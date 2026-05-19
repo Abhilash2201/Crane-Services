@@ -132,7 +132,7 @@ export function DispatchPage() {
       );
     });
 
-    return () => socket.disconnect();
+    return () => { socket.disconnect(); };
   }, []);
 
   useEffect(() => {
