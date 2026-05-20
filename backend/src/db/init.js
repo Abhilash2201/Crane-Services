@@ -88,11 +88,16 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS owner_drivers (
       owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       driver_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      license_url TEXT,
+      tpa_url TEXT,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
       PRIMARY KEY (owner_id, driver_id),
       UNIQUE (driver_id)
     )
   `;
+
+  await sql`ALTER TABLE owner_drivers ADD COLUMN IF NOT EXISTS license_url TEXT`;
+  await sql`ALTER TABLE owner_drivers ADD COLUMN IF NOT EXISTS tpa_url TEXT`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS fleet (
@@ -111,6 +116,10 @@ async function initDb() {
   `;
 
   await sql`ALTER TABLE fleet ADD COLUMN IF NOT EXISTS variant_id UUID REFERENCES crane_variants(id) ON DELETE SET NULL`;
+  await sql`ALTER TABLE fleet ADD COLUMN IF NOT EXISTS rc_url TEXT`;
+  await sql`ALTER TABLE fleet ADD COLUMN IF NOT EXISTS emission_url TEXT`;
+  await sql`ALTER TABLE fleet ADD COLUMN IF NOT EXISTS form32_url TEXT`;
+  await sql`ALTER TABLE fleet ADD COLUMN IF NOT EXISTS insurance_url TEXT`;
 
   await sql`
     CREATE TABLE IF NOT EXISTS tracking_events (

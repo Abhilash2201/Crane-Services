@@ -16,6 +16,10 @@ type Crane = {
   capacity_tons: number | null;
   registration: string | null;
   status: string;
+  rc_url?: string | null;
+  emission_url?: string | null;
+  form32_url?: string | null;
+  insurance_url?: string | null;
 };
 
 type StatusVariant = "success" | "warning" | "outline";
@@ -91,6 +95,11 @@ export function FleetPage() {
   const [form, setForm] = useState(EMPTY_FORM);
   const [modalError, setModalError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [rcFile, setRcFile] = useState<File | null>(null);
+  const [emissionFile, setEmissionFile] = useState<File | null>(null);
+  const [form32File, setForm32File] = useState<File | null>(null);
+  const [insuranceFile, setInsuranceFile] = useState<File | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   useEffect(() => {
     Promise.all([
@@ -129,10 +138,19 @@ export function FleetPage() {
     }
   };
 
+  const resetFiles = () => {
+    setRcFile(null);
+    setEmissionFile(null);
+    setForm32File(null);
+    setInsuranceFile(null);
+    setFileInputKey((k) => k + 1);
+  };
+
   const openAddModal = () => {
     setEditingId(null);
     setForm(EMPTY_FORM);
     setModalError("");
+    resetFiles();
     setOpen(true);
   };
 
@@ -146,6 +164,7 @@ export function FleetPage() {
       registration: crane.registration || "",
     });
     setModalError("");
+    resetFiles();
     setOpen(true);
   };
 
@@ -165,19 +184,26 @@ export function FleetPage() {
       if (duplicate) { setModalError("Registration number already exists."); return; }
     }
 
-    const payload = {
-      name: form.name.trim(),
-      type: form.type.trim() || undefined,
-      variantId: form.variantId,
-      capacityTons: form.capacityTons ? Number(form.capacityTons) : undefined,
-      registration: reg || undefined,
-    };
-
     setSaving(true);
     try {
+      const fd = new FormData();
+      fd.append("name", form.name.trim());
+      if (form.type.trim()) fd.append("type", form.type.trim());
+      fd.append("variantId", form.variantId);
+      if (form.capacityTons) fd.append("capacityTons", form.capacityTons);
+      if (reg) fd.append("registration", reg);
+      if (rcFile) fd.append("rc", rcFile);
+      if (emissionFile) fd.append("emission", emissionFile);
+      if (form32File) fd.append("form32", form32File);
+      if (insuranceFile) fd.append("insurance", insuranceFile);
+
       const res = editingId
-        ? await api.patch(`/owner/fleet/${editingId}`, payload)
-        : await api.post("/owner/fleet", payload);
+        ? await api.patch(`/owner/fleet/${editingId}`, fd, {
+            headers: { "Content-Type": "multipart/form-data" },
+          })
+        : await api.post("/owner/fleet", fd, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
       const next: Crane = res.data?.data;
       setFleet((prev) =>
         editingId
@@ -344,6 +370,30 @@ export function FleetPage() {
               </Button>
             </div>
 
+            {(selected.rc_url || selected.emission_url || selected.form32_url || selected.insurance_url) && (
+              <section>
+                <div style={{ fontSize: 12, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 8 }}>
+                  Documents
+                </div>
+                {[
+                  { label: "RC Book", url: selected.rc_url },
+                  { label: "Emission Certificate", url: selected.emission_url },
+                  { label: "Form 32", url: selected.form32_url },
+                  { label: "Insurance", url: selected.insurance_url },
+                ].filter((d) => d.url).map((d) => (
+                  <a
+                    key={d.label}
+                    href={d.url!}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#2563EB", textDecoration: "none", padding: "6px 0", borderBottom: "1px solid #F1F5F9" }}
+                  >
+                    <span>📄</span> {d.label}
+                  </a>
+                ))}
+              </section>
+            )}
+
             {/* Edit button */}
             <Button
               variant="outline"
@@ -362,6 +412,7 @@ export function FleetPage() {
         onClose={() => {
           setOpen(false);
           setModalError("");
+          resetFiles();
         }}
       >
         <h3 style={{ margin: "0 0 16px 0", color: "#0A2540" }}>
@@ -443,6 +494,34 @@ export function FleetPage() {
             />
           </div>
 
+          <div style={{ borderTop: "1px solid #F1F5F9", paddingTop: 10, display: "grid", gap: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Documents{" "}
+              <span style={{ color: "#94A3B8", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
+                (optional · JPG / PNG / PDF, max 5 MB{editingId ? " · replaces existing" : ""})
+              </span>
+            </div>
+            {[
+              { label: "RC Book", key: "rc", setter: setRcFile },
+              { label: "Emission Certificate", key: "emission", setter: setEmissionFile },
+              { label: "Form 32", key: "form32", setter: setForm32File },
+              { label: "Insurance", key: "insurance", setter: setInsuranceFile },
+            ].map(({ label, key, setter }) => (
+              <div key={key}>
+                <label style={{ fontSize: 13, color: "#64748B", display: "block", marginBottom: 4 }}>
+                  {label}
+                </label>
+                <input
+                  key={`${key}-${fileInputKey}`}
+                  type="file"
+                  accept=".jpg,.jpeg,.png,.pdf"
+                  onChange={(e) => setter(e.target.files?.[0] ?? null)}
+                  style={{ fontSize: 13, width: "100%", cursor: "pointer" }}
+                />
+              </div>
+            ))}
+          </div>
+
           {modalError ? (
             <small style={{ color: "#DC2626" }}>{modalError}</small>
           ) : null}
@@ -453,6 +532,7 @@ export function FleetPage() {
               onClick={() => {
                 setOpen(false);
                 setModalError("");
+                resetFiles();
               }}
               disabled={saving}
             >

@@ -14,6 +14,8 @@ type Driver = {
   phone: string;
   is_active: boolean;
   created_at: string;
+  license_url?: string | null;
+  tpa_url?: string | null;
 };
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
@@ -51,6 +53,15 @@ export function DriversPage() {
   const [createForm, setCreateForm] = useState(EMPTY_FORM);
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
+  const [licenseFile, setLicenseFile] = useState<File | null>(null);
+  const [tpaFile, setTpaFile] = useState<File | null>(null);
+  const [fileInputKey, setFileInputKey] = useState(0);
+
+  const [docLicenseFile, setDocLicenseFile] = useState<File | null>(null);
+  const [docTpaFile, setDocTpaFile] = useState<File | null>(null);
+  const [docFileKey, setDocFileKey] = useState(0);
+  const [updatingDocs, setUpdatingDocs] = useState(false);
+  const [docError, setDocError] = useState("");
 
   useEffect(() => {
     api
@@ -62,10 +73,18 @@ export function DriversPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  const resetDocFiles = () => {
+    setDocLicenseFile(null);
+    setDocTpaFile(null);
+    setDocFileKey((k) => k + 1);
+    setDocError("");
+  };
+
   const handleOpenRow = (driver: Driver) => {
     setSelected(driver);
     setConfirmRemove(false);
     setError("");
+    resetDocFiles();
   };
 
   const handleRemove = async () => {
@@ -83,6 +102,29 @@ export function DriversPage() {
     }
   };
 
+  const handleUpdateDocs = async () => {
+    if (!selected || (!docLicenseFile && !docTpaFile)) return;
+    setUpdatingDocs(true);
+    setDocError("");
+    try {
+      const fd = new FormData();
+      if (docLicenseFile) fd.append("license", docLicenseFile);
+      if (docTpaFile) fd.append("tpa", docTpaFile);
+      const res = await api.patch(`/owner/drivers/${selected.id}/docs`, fd, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
+      const { license_url, tpa_url } = res.data.data;
+      const updated = { ...selected, license_url, tpa_url };
+      setSelected(updated);
+      setDrivers((prev) => prev.map((d) => (d.id === selected.id ? updated : d)));
+      resetDocFiles();
+    } catch (err: any) {
+      setDocError(err?.response?.data?.message || "Unable to update documents.");
+    } finally {
+      setUpdatingDocs(false);
+    }
+  };
+
   const handleCreate = async () => {
     setCreateError("");
     if (!createForm.name.trim()) { setCreateError("Full name is required."); return; }
@@ -91,16 +133,23 @@ export function DriversPage() {
 
     setCreating(true);
     try {
-      const res = await api.post("/owner/drivers/create", {
-        name: createForm.name.trim(),
-        email: createForm.email.trim().toLowerCase(),
-        phone: createForm.phone.trim(),
-        password: createForm.password.trim() || undefined,
+      const fd = new FormData();
+      fd.append("name", createForm.name.trim());
+      fd.append("email", createForm.email.trim().toLowerCase());
+      fd.append("phone", createForm.phone.trim());
+      if (createForm.password.trim()) fd.append("password", createForm.password.trim());
+      if (licenseFile) fd.append("license", licenseFile);
+      if (tpaFile) fd.append("tpa", tpaFile);
+
+      const res = await api.post("/owner/drivers/create", fd, {
+        headers: { "Content-Type": "multipart/form-data" },
       });
       const tempPassword = res.data?.data?.tempPassword;
       const listRes = await api.get("/owner/drivers");
       setDrivers(listRes.data?.data || []);
       setCreateForm(EMPTY_FORM);
+      setLicenseFile(null);
+      setTpaFile(null);
       setOpenCreate(false);
       if (tempPassword) {
         setSuccessMsg(`Driver created. Temporary password: ${tempPassword}`);
@@ -230,6 +279,9 @@ export function DriversPage() {
                 setOpenCreate(true);
                 setCreateError("");
                 setCreateForm(EMPTY_FORM);
+                setLicenseFile(null);
+                setTpaFile(null);
+                setFileInputKey((k) => k + 1);
               }}
             >
               Add Driver
@@ -244,6 +296,7 @@ export function DriversPage() {
         onHide={() => {
           setSelected(null);
           setConfirmRemove(false);
+          resetDocFiles();
         }}
         position="right"
         style={{ width: "min(460px, 100vw)" }}
@@ -262,6 +315,45 @@ export function DriversPage() {
                     : "—"
                 }
               />
+            </section>
+
+            <section style={{ display: "grid", gap: 10 }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                Documents
+              </div>
+              {[
+                { label: "Driving License", url: selected.license_url, field: "license" as const, setter: setDocLicenseFile },
+                { label: "TPA Document",    url: selected.tpa_url,     field: "tpa"     as const, setter: setDocTpaFile },
+              ].map(({ label, url, field, setter }) => (
+                <div key={field}>
+                  {url ? (
+                    <a
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#2563EB", textDecoration: "none", marginBottom: 4 }}
+                    >
+                      <span>📄</span> {label} (view)
+                    </a>
+                  ) : (
+                    <div style={{ fontSize: 13, color: "#94A3B8", marginBottom: 4 }}>{label} — not uploaded</div>
+                  )}
+                  <input
+                    key={`${field}-${docFileKey}`}
+                    type="file"
+                    accept=".jpg,.jpeg,.png,.pdf"
+                    onChange={(e) => setter(e.target.files?.[0] ?? null)}
+                    style={{ fontSize: 12, width: "100%", cursor: "pointer" }}
+                  />
+                </div>
+              ))}
+              {docError && <small style={{ color: "#DC2626" }}>{docError}</small>}
+              <Button
+                disabled={(!docLicenseFile && !docTpaFile) || updatingDocs}
+                onClick={handleUpdateDocs}
+              >
+                {updatingDocs ? "Saving..." : "Save Documents"}
+              </Button>
             </section>
 
             {!confirmRemove ? (
@@ -320,6 +412,9 @@ export function DriversPage() {
         onClose={() => {
           setOpenCreate(false);
           setCreateError("");
+          setLicenseFile(null);
+          setTpaFile(null);
+          setFileInputKey((k) => k + 1);
         }}
       >
         <h3 style={{ margin: "0 0 16px 0", color: "#0A2540" }}>Add Driver</h3>
@@ -379,6 +474,39 @@ export function DriversPage() {
                 setCreateForm((prev) => ({ ...prev, password: e.target.value }))
               }
             />
+          </div>
+
+          <div style={{ borderTop: "1px solid #F1F5F9", paddingTop: 10, display: "grid", gap: 10 }}>
+            <div style={{ fontSize: 12, fontWeight: 600, color: "#64748B", textTransform: "uppercase", letterSpacing: "0.05em" }}>
+              Documents{" "}
+              <span style={{ color: "#94A3B8", fontWeight: 400, textTransform: "none", letterSpacing: 0 }}>
+                (optional · JPG / PNG / PDF, max 5 MB)
+              </span>
+            </div>
+            <div>
+              <label style={{ fontSize: 13, color: "#64748B", display: "block", marginBottom: 4 }}>
+                Driving License
+              </label>
+              <input
+                key={`license-${fileInputKey}`}
+                type="file"
+                accept=".jpg,.jpeg,.png,.pdf"
+                onChange={(e) => setLicenseFile(e.target.files?.[0] ?? null)}
+                style={{ fontSize: 13, width: "100%", cursor: "pointer" }}
+              />
+            </div>
+            <div>
+              <label style={{ fontSize: 13, color: "#64748B", display: "block", marginBottom: 4 }}>
+                TPA Document
+              </label>
+              <input
+                key={`tpa-${fileInputKey}`}
+                type="file"
+                accept=".jpg,.jpeg,.png,.pdf"
+                onChange={(e) => setTpaFile(e.target.files?.[0] ?? null)}
+                style={{ fontSize: 13, width: "100%", cursor: "pointer" }}
+              />
+            </div>
           </div>
 
           {createError ? (

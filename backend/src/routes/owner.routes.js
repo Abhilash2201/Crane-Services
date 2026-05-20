@@ -1,10 +1,29 @@
 const express = require("express");
+const multer = require("multer");
 const { z } = require("zod");
 const bcrypt = require("bcryptjs");
 const { sql } = require("../db/neon");
 const { asyncHandler } = require("../utils/asyncHandler");
 const { HttpError } = require("../utils/httpError");
 const { requireAuth, authorize } = require("../middlewares/auth");
+
+const docUploader = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    const allowedMime = /^(image\/(jpeg|png)|application\/pdf)$/;
+    if (allowedMime.test(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new HttpError(400, "Only JPG, PNG, and PDF files are allowed"));
+    }
+  }
+});
+
+const toBase64 = (files, field) => {
+  const f = files?.[field]?.[0];
+  return f ? `data:${f.mimetype};base64,${f.buffer.toString("base64")}` : null;
+};
 
 const router = express.Router();
 
@@ -105,7 +124,8 @@ router.get(
   "/drivers",
   asyncHandler(async (req, res) => {
     const rows = await sql`
-      SELECT u.id, u.name, u.email, u.phone, u.is_active, d.created_at
+      SELECT u.id, u.name, u.email, u.phone, u.is_active,
+             d.created_at, d.license_url, d.tpa_url
       FROM owner_drivers d
       JOIN users u ON u.id = d.driver_id
       WHERE d.owner_id = ${req.user.userId}
@@ -155,6 +175,10 @@ router.post(
 
 router.post(
   "/drivers/create",
+  docUploader.fields([
+    { name: "license", maxCount: 1 },
+    { name: "tpa", maxCount: 1 }
+  ]),
   asyncHandler(async (req, res) => {
     const payload = createDriverSchema.parse(req.body);
     const existing =
@@ -173,19 +197,48 @@ router.post(
     `;
     const driver = rows[0];
 
+    const licenseData = toBase64(req.files, "license");
+    const tpaData = toBase64(req.files, "tpa");
+
     await sql`
-      INSERT INTO owner_drivers (owner_id, driver_id)
-      VALUES (${req.user.userId}, ${driver.id})
+      INSERT INTO owner_drivers (owner_id, driver_id, license_url, tpa_url)
+      VALUES (${req.user.userId}, ${driver.id}, ${licenseData}, ${tpaData})
       ON CONFLICT (driver_id) DO NOTHING
     `;
 
     res.status(201).json({
       success: true,
       data: {
-        driver,
+        driver: { ...driver, licenseUrl: licenseData, tpaUrl: tpaData },
         tempPassword: payload.password ? null : rawPassword
       }
     });
+  })
+);
+
+router.patch(
+  "/drivers/:driverId/docs",
+  docUploader.fields([
+    { name: "license", maxCount: 1 },
+    { name: "tpa", maxCount: 1 }
+  ]),
+  asyncHandler(async (req, res) => {
+    const { driverId } = req.params;
+    const newLicense = toBase64(req.files, "license");
+    const newTpa = toBase64(req.files, "tpa");
+
+    if (!newLicense && !newTpa) throw new HttpError(400, "Upload at least one document");
+
+    const rows = await sql`
+      UPDATE owner_drivers
+      SET
+        license_url = COALESCE(${newLicense}, license_url),
+        tpa_url = COALESCE(${newTpa}, tpa_url)
+      WHERE owner_id = ${req.user.userId} AND driver_id = ${driverId}
+      RETURNING license_url, tpa_url
+    `;
+    if (!rows.length) throw new HttpError(404, "Driver not linked to your account");
+    res.json({ success: true, data: rows[0] });
   })
 );
 
@@ -356,6 +409,12 @@ router.get(
 
 router.post(
   "/fleet",
+  docUploader.fields([
+    { name: "rc", maxCount: 1 },
+    { name: "emission", maxCount: 1 },
+    { name: "form32", maxCount: 1 },
+    { name: "insurance", maxCount: 1 }
+  ]),
   asyncHandler(async (req, res) => {
     const payload = fleetCreateSchema.parse(req.body);
 
@@ -367,7 +426,10 @@ router.post(
     }
 
     const rows = await sql`
-      INSERT INTO fleet (owner_id, name, type, variant_id, capacity_tons, registration, status)
+      INSERT INTO fleet (
+        owner_id, name, type, variant_id, capacity_tons, registration, status,
+        rc_url, emission_url, form32_url, insurance_url
+      )
       VALUES (
         ${req.user.userId},
         ${payload.name},
@@ -375,7 +437,11 @@ router.post(
         ${payload.variantId || null},
         ${payload.capacityTons || null},
         ${payload.registration || null},
-        ${payload.status || "active"}
+        ${payload.status || "active"},
+        ${toBase64(req.files, "rc")},
+        ${toBase64(req.files, "emission")},
+        ${toBase64(req.files, "form32")},
+        ${toBase64(req.files, "insurance")}
       )
       RETURNING *
     `;
@@ -385,6 +451,12 @@ router.post(
 
 router.patch(
   "/fleet/:fleetId",
+  docUploader.fields([
+    { name: "rc", maxCount: 1 },
+    { name: "emission", maxCount: 1 },
+    { name: "form32", maxCount: 1 },
+    { name: "insurance", maxCount: 1 }
+  ]),
   asyncHandler(async (req, res) => {
     const payload = fleetUpdateSchema.parse(req.body);
     const { fleetId } = req.params;
@@ -396,6 +468,11 @@ router.patch(
       if (!variant.length) throw new HttpError(400, "Selected crane variant is invalid");
     }
 
+    const newRc = toBase64(req.files, "rc");
+    const newEmission = toBase64(req.files, "emission");
+    const newForm32 = toBase64(req.files, "form32");
+    const newInsurance = toBase64(req.files, "insurance");
+
     const rows = await sql`
       UPDATE fleet
       SET
@@ -405,6 +482,10 @@ router.patch(
         capacity_tons = COALESCE(${payload.capacityTons || null}, capacity_tons),
         registration = COALESCE(${payload.registration || null}, registration),
         status = COALESCE(${payload.status || null}, status),
+        rc_url = COALESCE(${newRc}, rc_url),
+        emission_url = COALESCE(${newEmission}, emission_url),
+        form32_url = COALESCE(${newForm32}, form32_url),
+        insurance_url = COALESCE(${newInsurance}, insurance_url),
         updated_at = now()
       WHERE id = ${fleetId} AND owner_id = ${req.user.userId}
       RETURNING *
