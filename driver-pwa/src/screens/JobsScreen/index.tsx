@@ -129,7 +129,7 @@ export function JobsScreen({ jobs, onRefresh }: Props) {
                 <JobCardHeader $status={job.status}>
                   <IdPill>{job.jobRefId ?? `JOB-${sid(jobKey)}`}</IdPill>
                   <StatusPill $status={job.status}>
-                    {job.status === "in_progress" || job.status === "working" ? (
+                    {job.status === "in_progress" ? (
                       <span
                         style={{
                           width: 6,
