@@ -33,7 +33,12 @@ export function AuthPage() {
         email: email.trim().toLowerCase(),
         password
       });
-      authStore.write(res.data?.data || null);
+      const data = res.data?.data;
+      if (data?.user?.role && data.user.role !== "owner") {
+        setError("This account does not have owner access. Please use the correct portal.");
+        return;
+      }
+      authStore.write(data || null);
       navigate("/dashboard");
     } catch (err: any) {
       setError(err?.response?.data?.message || "Login failed. Please try again.");

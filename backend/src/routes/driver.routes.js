@@ -57,7 +57,8 @@ router.get(
   "/jobs",
   asyncHandler(async (req, res) => {
     const rows = await sql`
-      SELECT j.*, r.pickup_address, r.drop_address, r.customer_id
+      SELECT j.*, r.pickup_address, r.drop_address, r.customer_id,
+             r.ref_id AS request_ref_id
       FROM jobs j
       JOIN requests r ON r.id = j.request_id
       WHERE j.driver_id = ${req.user.userId}
@@ -132,11 +133,13 @@ router.patch(
     io?.to(`job:${jobId}`).emit("job:status_changed", {
       jobId,
       requestId: job[0].request_id,
+      refId: job[0].ref_id,
       status
     });
     io?.to("role:admin").emit("job:status_changed", {
       jobId,
       requestId: job[0].request_id,
+      refId: job[0].ref_id,
       status
     });
 

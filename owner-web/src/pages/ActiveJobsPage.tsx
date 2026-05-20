@@ -12,7 +12,9 @@ const sid = (id: string) => id.replace(/-/g, "").slice(0, 6).toUpperCase();
 
 type Job = {
   id: string;
+  ref_id?: string;
   request_id: string;
+  request_ref_id?: string;
   status: string;
   pickup_address: string;
   driver_id: string | null;
@@ -29,7 +31,7 @@ function statusVariant(status: string): "warning" | "success" | "danger" | "defa
   return "default";
 }
 
-const JobIdPill = ({ id }: { id: string }) => (
+const JobIdPill = ({ id, refId }: { id: string; refId?: string }) => (
   <span
     style={{
       background: "#F1F5F9",
@@ -41,7 +43,7 @@ const JobIdPill = ({ id }: { id: string }) => (
       fontFamily: "monospace",
     }}
   >
-    JOB-{sid(id)}
+    {refId ?? `JOB-${sid(id)}`}
   </span>
 );
 
@@ -118,7 +120,7 @@ export function ActiveJobsPage() {
 
     socket.on("dispatch:job_assigned", (payload: any) => {
       setLiveEvents((prev) =>
-        [`Driver assigned: JOB-${sid(payload.request_id || payload.id)}`, ...prev].slice(0, 5)
+        [`Driver assigned: ${payload.ref_id ?? `JOB-${sid(payload.request_id || payload.id)}`}`, ...prev].slice(0, 5)
       );
       setJobs((prev) =>
         prev.map((j) =>
@@ -131,7 +133,7 @@ export function ActiveJobsPage() {
 
     socket.on("job:status_changed", (payload: any) => {
       setLiveEvents((prev) =>
-        [`JOB-${sid(payload.jobId)} → ${payload.status}`, ...prev].slice(0, 5)
+        [`${payload.refId ?? `JOB-${sid(payload.jobId)}`} → ${payload.status}`, ...prev].slice(0, 5)
       );
       setJobs((prev) =>
         prev.map((j) => (j.id === payload.jobId ? { ...j, status: payload.status } : j))
@@ -254,7 +256,7 @@ export function ActiveJobsPage() {
     {
       field: "id",
       header: "Job ID",
-      body: (row) => <JobIdPill id={row.id} />,
+      body: (row) => <JobIdPill id={row.id} refId={row.ref_id} />,
       width: "110px",
     },
     {
@@ -332,7 +334,7 @@ export function ActiveJobsPage() {
 
   const sidebarHeader = selected ? (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <JobIdPill id={selected.id} />
+      <JobIdPill id={selected.id} refId={selected.ref_id} />
       <Badge variant={statusVariant(selected.status)}>
         {selected.status.replace(/_/g, " ")}
       </Badge>

@@ -10,6 +10,7 @@ const sid = (id: string) => id.replace(/-/g, "").slice(0, 6).toUpperCase();
 
 type Request = {
   id: string;
+  ref_id?: string;
   customer_name: string;
   customer_id: string;
   pickup_address: string;
@@ -20,7 +21,7 @@ type Request = {
   distance: number | null;
 };
 
-const ReqIdCell = ({ id }: { id: string }) => (
+const ReqIdCell = ({ id, refId }: { id: string; refId?: string }) => (
   <span
     style={{
       background: "#F1F5F9",
@@ -32,7 +33,7 @@ const ReqIdCell = ({ id }: { id: string }) => (
       fontFamily: "monospace",
     }}
   >
-    REQ-{sid(id)}
+    {refId ?? `REQ-${sid(id)}`}
   </span>
 );
 
@@ -123,7 +124,7 @@ export function LiveRequestsPage() {
     {
       field: "id",
       header: "Request ID",
-      body: (row) => <ReqIdCell id={row.id} />,
+      body: (row) => <ReqIdCell id={row.id} refId={row.ref_id} />,
       width: "120px",
     },
     {
@@ -221,7 +222,7 @@ export function LiveRequestsPage() {
 
   const sidebarHeader = selected ? (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <ReqIdCell id={selected.id} />
+      <ReqIdCell id={selected.id} refId={selected.ref_id} />
       <Badge variant="warning">Pending</Badge>
     </div>
   ) : null;

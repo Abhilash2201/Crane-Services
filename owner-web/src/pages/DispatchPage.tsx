@@ -12,6 +12,7 @@ const sid = (id: string) => id.replace(/-/g, "").slice(0, 6).toUpperCase();
 
 type Request = {
   id: string;
+  ref_id?: string;
   customer_name: string | null;
   customer_id: string;
   pickup_address: string;
@@ -27,7 +28,7 @@ type FleetOption = {
   capacity: number | null;
 };
 
-const ReqIdPill = ({ id }: { id: string }) => (
+const ReqIdPill = ({ id, refId }: { id: string; refId?: string }) => (
   <span
     style={{
       background: "#F1F5F9",
@@ -39,7 +40,7 @@ const ReqIdPill = ({ id }: { id: string }) => (
       fontFamily: "monospace",
     }}
   >
-    REQ-{sid(id)}
+    {refId ?? `REQ-${sid(id)}`}
   </span>
 );
 
@@ -118,7 +119,7 @@ export function DispatchPage() {
     const socket = createRealtimeSocket();
 
     socket.on("dispatch:job_assigned", (payload: any) => {
-      const label = `REQ-${sid(payload.request_id || payload.id)} dispatched`;
+      const label = `${payload.ref_id ?? `REQ-${sid(payload.request_id || payload.id)}`} dispatched`;
       setLiveEvents((prev) => [label, ...prev].slice(0, 5));
       // remove dispatched request from list
       setRequests((prev) =>
@@ -128,7 +129,7 @@ export function DispatchPage() {
 
     socket.on("job:status_changed", (payload: any) => {
       setLiveEvents((prev) =>
-        [`JOB-${sid(payload.jobId)} → ${payload.status}`, ...prev].slice(0, 5)
+        [`${payload.refId ?? `JOB-${sid(payload.jobId)}`} → ${payload.status}`, ...prev].slice(0, 5)
       );
     });
 
@@ -217,7 +218,7 @@ export function DispatchPage() {
     {
       field: "id",
       header: "Request ID",
-      body: (row) => <ReqIdPill id={row.id} />,
+      body: (row) => <ReqIdPill id={row.id} refId={row.ref_id} />,
       width: "120px",
     },
     {
@@ -307,7 +308,7 @@ export function DispatchPage() {
 
   const sidebarHeader = selected ? (
     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-      <ReqIdPill id={selected.id} />
+      <ReqIdPill id={selected.id} refId={selected.ref_id} />
       <Badge variant="warning">Accepted</Badge>
     </div>
   ) : null;

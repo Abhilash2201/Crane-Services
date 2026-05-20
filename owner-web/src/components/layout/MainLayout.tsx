@@ -10,7 +10,7 @@ import {
   Users
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { Button } from "../ui/button";
 import { api, authStore } from "../../lib/api";
@@ -137,6 +137,7 @@ const links = [
 ];
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
+  const navigate = useNavigate();
   const [collapsed, setCollapsed] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [authPayload, setAuthPayload] = useState<{
@@ -167,6 +168,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
     const auth = authStore.read();
     if (!auth?.refreshToken) {
       authStore.write(null);
+      navigate("/auth", { replace: true });
       return;
     }
     try {
@@ -175,6 +177,7 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
       // Ignore logout errors.
     } finally {
       authStore.write(null);
+      navigate("/auth", { replace: true });
     }
   };
 

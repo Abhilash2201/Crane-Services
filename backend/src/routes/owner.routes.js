@@ -60,7 +60,7 @@ router.get(
   "/incoming-requests",
   asyncHandler(async (req, res) => {
     const rows = await sql`
-      SELECT r.id, r.customer_id, r.pickup_address, r.drop_address, r.required_capacity_tons,
+      SELECT r.id, r.ref_id, r.customer_id, r.pickup_address, r.drop_address, r.required_capacity_tons,
              r.variant_id, v.name AS variant_name, r.scheduled_at, r.status, r.notes, r.created_at,
              u.name AS customer_name
       FROM requests r
@@ -88,7 +88,7 @@ router.get(
   "/accepted-requests",
   asyncHandler(async (req, res) => {
     const rows = await sql`
-      SELECT r.id, r.customer_id, r.pickup_address, r.drop_address, r.required_capacity_tons,
+      SELECT r.id, r.ref_id, r.customer_id, r.pickup_address, r.drop_address, r.required_capacity_tons,
              r.variant_id, r.scheduled_at, r.status, r.notes, r.created_at,
              u.name AS customer_name
       FROM requests r
@@ -419,7 +419,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const rows = await sql`
       SELECT j.*, r.pickup_address, r.drop_address, r.status AS request_status,
-             d.name AS driver_name
+             r.ref_id AS request_ref_id, d.name AS driver_name
       FROM jobs j
       JOIN requests r ON r.id = j.request_id
       LEFT JOIN users d ON d.id = j.driver_id

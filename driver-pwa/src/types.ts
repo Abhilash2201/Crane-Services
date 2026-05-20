@@ -4,6 +4,8 @@ export type Job = {
   id: string;
   requestId?: string;
   jobId?: string;
+  jobRefId?: string;
+  requestRefId?: string;
   variant: string;
   capacity: string;
   customer: string;

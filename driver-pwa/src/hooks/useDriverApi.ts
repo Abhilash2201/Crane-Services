@@ -50,6 +50,8 @@ export function useDriverApi(setState: SetState) {
           id: job.request_id || job.id,
           requestId: job.request_id,
           jobId: job.id,
+          jobRefId: job.ref_id,
+          requestRefId: job.request_ref_id,
           variant: job.crane_registration || "Assigned Crane",
           capacity: "NA",
           customer: "Customer",

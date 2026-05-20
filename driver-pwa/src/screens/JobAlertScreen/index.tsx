@@ -1,6 +1,7 @@
 import { BellRing } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { Job } from "../../types";
+import { sid } from "../../lib/sid";
 import { ScreenWithNav } from "../../components/ScreenWithNav";
 import { Action, Card, SafeArea } from "../../styles/shared";
 import { MapBox, NotifyBanner } from "./styles";
@@ -40,7 +41,9 @@ export function JobAlertScreen({
           New Assignment Nearby ({job.distanceKm} km)
         </NotifyBanner>
         <Card>
-          <h3 style={{ margin: "0 0 6px" }}>{job.id}</h3>
+          <h3 style={{ margin: "0 0 6px", fontFamily: "monospace" }}>
+            {job.requestRefId ?? `REQ-${sid(job.id)}`}
+          </h3>
           <p style={{ margin: "4px 0" }}>
             <b>Variant:</b> {job.variant} ({job.capacity})
           </p>

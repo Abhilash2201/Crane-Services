@@ -187,6 +187,19 @@ async function initDb() {
     )
   `;
 
+  // Sequential human-readable ref IDs — backfills existing rows, sets DEFAULT for new inserts
+  await sql`CREATE SEQUENCE IF NOT EXISTS requests_ref_seq START 1`;
+  await sql`ALTER TABLE requests ADD COLUMN IF NOT EXISTS ref_id TEXT`;
+  await sql`UPDATE requests SET ref_id = 'REQ-' || LPAD(nextval('requests_ref_seq')::text, 6, '0') WHERE ref_id IS NULL`;
+  await sql`ALTER TABLE requests ALTER COLUMN ref_id SET DEFAULT 'REQ-' || LPAD(nextval('requests_ref_seq')::text, 6, '0')`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS requests_ref_id_idx ON requests (ref_id)`;
+
+  await sql`CREATE SEQUENCE IF NOT EXISTS jobs_ref_seq START 1`;
+  await sql`ALTER TABLE jobs ADD COLUMN IF NOT EXISTS ref_id TEXT`;
+  await sql`UPDATE jobs SET ref_id = 'JOB-' || LPAD(nextval('jobs_ref_seq')::text, 6, '0') WHERE ref_id IS NULL`;
+  await sql`ALTER TABLE jobs ALTER COLUMN ref_id SET DEFAULT 'JOB-' || LPAD(nextval('jobs_ref_seq')::text, 6, '0')`;
+  await sql`CREATE UNIQUE INDEX IF NOT EXISTS jobs_ref_id_idx ON jobs (ref_id)`;
+
   await sql`
     CREATE TABLE IF NOT EXISTS variant_requests (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
