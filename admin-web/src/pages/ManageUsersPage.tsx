@@ -11,7 +11,10 @@ import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
 import { Switch } from "../components/ui/switch";
 import { Button } from "../components/ui/button";
+import { Modal } from "../components/ui/modal";
 import { api } from "../lib/api";
+
+const EMPTY_OWNER_FORM = { name: "", email: "", phone: "", password: "" };
 
 const Filters = styled.div`
   display: grid;
@@ -102,6 +105,12 @@ export function ManageUsersPage() {
   const [rows, setRows] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [openCreate, setOpenCreate] = useState(false);
+  const [createForm, setCreateForm] = useState(EMPTY_OWNER_FORM);
+  const [createError, setCreateError] = useState("");
+  const [creating, setCreating] = useState(false);
+  const [tempPassword, setTempPassword] = useState("");
+
   useEffect(() => {
     api
       .get("/admin/users")
@@ -153,6 +162,32 @@ export function ManageUsersPage() {
     );
   }, [filtered, tab]);
 
+  const handleCreateOwner = async () => {
+    setCreateError("");
+    if (!createForm.name.trim()) { setCreateError("Name is required."); return; }
+    if (!createForm.email.trim()) { setCreateError("Email is required."); return; }
+
+    setCreating(true);
+    try {
+      const res = await api.post("/admin/owners/create", {
+        name: createForm.name.trim(),
+        email: createForm.email.trim().toLowerCase(),
+        phone: createForm.phone.trim() || undefined,
+        password: createForm.password.trim() || undefined,
+      });
+      const { owner, tempPassword: tp } = res.data.data;
+      setRows((prev) => [owner, ...prev]);
+      setCreateForm(EMPTY_OWNER_FORM);
+      setOpenCreate(false);
+      if (tp) setTempPassword(tp);
+      setTab("Crane Owners");
+    } catch (err: any) {
+      setCreateError(err?.response?.data?.message || "Unable to create owner.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -160,6 +195,13 @@ export function ManageUsersPage() {
       </CardHeader>
       <CardContent>
         <Tabs options={["Customers", "Crane Owners", "Drivers"]} value={tab} onChange={setTab} />
+
+        {tempPassword && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#15803D", margin: "12px 0" }}>
+            <span>Owner created. Temporary password: <strong>{tempPassword}</strong></span>
+            <button onClick={() => setTempPassword("")} style={{ background: "none", border: "none", cursor: "pointer", color: "#15803D", fontSize: 18, lineHeight: 1, padding: 0 }}>×</button>
+          </div>
+        )}
 
         <Filters style={{ marginTop: 12 }}>
           <Input
@@ -177,16 +219,19 @@ export function ManageUsersPage() {
           </Select>
         </Filters>
 
-        <div style={{ marginBottom: 10, display: "flex", gap: 8 }}>
-          <Button size="sm" variant="outline" disabled>
-            Bulk Activate
-          </Button>
-          <Button size="sm" variant="outline" disabled>
-            Bulk Suspend
-          </Button>
-          <Button size="sm" variant="danger" disabled>
-            Bulk Delete
-          </Button>
+        <div style={{ marginBottom: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <Button size="sm" variant="outline" disabled>Bulk Activate</Button>
+          <Button size="sm" variant="outline" disabled>Bulk Suspend</Button>
+          <Button size="sm" variant="danger" disabled>Bulk Delete</Button>
+          {tab === "Crane Owners" && (
+            <Button
+              size="sm"
+              style={{ marginLeft: "auto" }}
+              onClick={() => { setOpenCreate(true); setCreateError(""); setCreateForm(EMPTY_OWNER_FORM); }}
+            >
+              + Create Owner
+            </Button>
+          )}
         </div>
 
         <TableWrap>
@@ -299,6 +344,65 @@ export function ManageUsersPage() {
           </Table>
         </TableWrap>
       </CardContent>
+
+      <Modal open={openCreate} onClose={() => { setOpenCreate(false); setCreateError(""); }}>
+        <h3 style={{ margin: "0 0 16px 0", color: "#0A2540" }}>Create Owner Account</h3>
+        <div style={{ display: "grid", gap: 10 }}>
+          <div>
+            <label style={{ fontSize: 13, color: "#64748B", display: "block", marginBottom: 4 }}>
+              Full Name <span style={{ color: "#DC2626" }}>*</span>
+            </label>
+            <Input
+              placeholder="e.g. Ravi Constructions"
+              value={createForm.name}
+              onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 13, color: "#64748B", display: "block", marginBottom: 4 }}>
+              Email <span style={{ color: "#DC2626" }}>*</span>
+            </label>
+            <Input
+              type="email"
+              placeholder="owner@company.com"
+              value={createForm.email}
+              onChange={(e) => setCreateForm((p) => ({ ...p, email: e.target.value }))}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 13, color: "#64748B", display: "block", marginBottom: 4 }}>
+              Phone <span style={{ color: "#94A3B8", fontWeight: 400 }}>(optional)</span>
+            </label>
+            <Input
+              placeholder="98XXXXXXXX"
+              value={createForm.phone}
+              onChange={(e) => setCreateForm((p) => ({ ...p, phone: e.target.value.replace(/\D/g, "").slice(0, 15) }))}
+            />
+          </div>
+          <div>
+            <label style={{ fontSize: 13, color: "#64748B", display: "block", marginBottom: 4 }}>
+              Password <span style={{ color: "#94A3B8", fontWeight: 400 }}>(leave blank to auto-generate)</span>
+            </label>
+            <Input
+              type="password"
+              placeholder="Optional"
+              value={createForm.password}
+              onChange={(e) => setCreateForm((p) => ({ ...p, password: e.target.value }))}
+            />
+          </div>
+
+          {createError && <small style={{ color: "#DC2626" }}>{createError}</small>}
+
+          <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
+            <Button variant="outline" onClick={() => { setOpenCreate(false); setCreateError(""); }} disabled={creating}>
+              Cancel
+            </Button>
+            <Button onClick={handleCreateOwner} disabled={creating}>
+              {creating ? "Creating..." : "Create Owner"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </Card>
   );
 }

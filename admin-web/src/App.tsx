@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AdminLayout } from "./components/layout/AdminLayout";
 import { OverviewPage } from "./pages/OverviewPage";
@@ -14,7 +13,6 @@ import { LoginPage } from "./pages/LoginPage";
 import { useAuth } from "./hooks/useAuth";
 
 function App() {
-  const [collapsed, setCollapsed] = useState(false);
   const auth = useAuth();
   const isAdmin = auth?.user?.role === "admin";
 
@@ -24,7 +22,7 @@ function App() {
       <Route
         element={
           isAdmin ? (
-            <AdminLayout collapsed={collapsed} setCollapsed={setCollapsed} />
+            <AdminLayout />
           ) : (
             <Navigate to="/login" replace />
           )

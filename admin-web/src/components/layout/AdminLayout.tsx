@@ -2,16 +2,17 @@ import {
   Bell,
   Building2,
   ChartColumnBig,
+  ChevronsLeftRightEllipsis,
   CircleHelp,
   ClipboardCheck,
   CreditCard,
   LayoutDashboard,
-  Menu,
   Search,
   Settings,
   Truck,
   Users,
 } from "lucide-react";
+import { useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { Button } from "../ui/button";
@@ -35,6 +36,11 @@ const Sidebar = styled.aside<{ $collapsed: boolean }>`
   flex-direction: column;
   gap: 18px;
   transition: width 0.25s ease;
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
 `;
 
 const Brand = styled.div<{ $collapsed: boolean }>`
@@ -97,7 +103,7 @@ const Topbar = styled.header`
   background: rgba(248, 250, 252, 0.92);
   backdrop-filter: blur(8px);
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: 1fr auto;
   gap: 14px;
   align-items: center;
   padding: 0 18px;
@@ -163,13 +169,8 @@ const navItems = [
   { to: "/settings", label: "Settings", icon: Settings },
 ];
 
-export function AdminLayout({
-  collapsed,
-  setCollapsed,
-}: {
-  collapsed: boolean;
-  setCollapsed: (value: boolean) => void;
-}) {
+export function AdminLayout() {
+  const [collapsed, setCollapsed] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const auth = useAuth();
@@ -199,18 +200,22 @@ export function AdminLayout({
             </Tooltip>
           ))}
         </NavList>
+
+        <div style={{ marginTop: "auto" }}>
+          <Button
+            variant="outline"
+            size="sm"
+            style={{ width: "100%", justifyContent: collapsed ? "center" : "flex-start", gap: 8, color: "#d9e1ea", borderColor: "rgba(255,255,255,0.15)", background: "transparent" }}
+            onClick={() => setCollapsed((s) => !s)}
+          >
+            <ChevronsLeftRightEllipsis size={16} />
+            {!collapsed ? "Collapse" : null}
+          </Button>
+        </div>
       </Sidebar>
 
       <Main>
         <Topbar>
-          <Button
-            size="icon"
-            variant="outline"
-            onClick={() => setCollapsed(!collapsed)}
-          >
-            <Menu size={18} />
-          </Button>
-
           <SearchWrap>
             <Search size={16} />
             <Input placeholder="Search requests, users, jobs, payouts..." />

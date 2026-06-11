@@ -99,6 +99,9 @@ async function initDb() {
   await sql`ALTER TABLE owner_drivers ADD COLUMN IF NOT EXISTS license_url TEXT`;
   await sql`ALTER TABLE owner_drivers ADD COLUMN IF NOT EXISTS tpa_url TEXT`;
 
+  // onboarding_status: 'approved' for all existing users; new owner self-registrations will use 'pending' (Phase 2)
+  await sql`ALTER TABLE users ADD COLUMN IF NOT EXISTS onboarding_status TEXT DEFAULT 'approved' CHECK (onboarding_status IN ('pending','approved','rejected'))`;
+
   await sql`
     CREATE TABLE IF NOT EXISTS fleet (
       id UUID PRIMARY KEY DEFAULT gen_random_uuid(),

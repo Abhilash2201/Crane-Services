@@ -1,4 +1,5 @@
 const express = require("express");
+const bcrypt = require("bcryptjs");
 const { z } = require("zod");
 const { sql } = require("../db/neon");
 const { asyncHandler } = require("../utils/asyncHandler");
@@ -10,6 +11,13 @@ const router = express.Router();
 
 const userStatusSchema = z.object({
   isActive: z.boolean()
+});
+
+const createOwnerSchema = z.object({
+  name: z.string().min(2),
+  email: z.string().email(),
+  phone: z.string().min(7).optional(),
+  password: z.string().min(6).optional()
 });
 
 const pricingSchema = z.object({
@@ -279,6 +287,45 @@ router.patch(
     io?.to(`user:${current.owner_id}`).emit("variant_request:updated", rows[0]);
 
     res.json({ success: true, data: rows[0] });
+  })
+);
+
+router.post(
+  "/owners/create",
+  asyncHandler(async (req, res) => {
+    const payload = createOwnerSchema.parse(req.body);
+
+    const existing = await sql`
+      SELECT id FROM users WHERE email = ${payload.email.toLowerCase()} LIMIT 1
+    `;
+    if (existing.length) throw new HttpError(409, "Email already in use");
+
+    const rawPassword =
+      payload.password ||
+      Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+    const passwordHash = await bcrypt.hash(rawPassword, 10);
+
+    const rows = await sql`
+      INSERT INTO users (name, email, phone, password_hash, role, onboarding_status, email_verified_at)
+      VALUES (
+        ${payload.name},
+        ${payload.email.toLowerCase()},
+        ${payload.phone || null},
+        ${passwordHash},
+        'owner',
+        'approved',
+        now()
+      )
+      RETURNING id, name, email, phone, role, is_active, onboarding_status, created_at
+    `;
+
+    res.status(201).json({
+      success: true,
+      data: {
+        owner: rows[0],
+        tempPassword: payload.password ? null : rawPassword
+      }
+    });
   })
 );
 
