@@ -345,8 +345,7 @@ export function ManageUsersPage() {
         </TableWrap>
       </CardContent>
 
-      <Modal open={openCreate} onClose={() => { setOpenCreate(false); setCreateError(""); }}>
-        <h3 style={{ margin: "0 0 16px 0", color: "#0A2540" }}>Create Owner Account</h3>
+      <Modal open={openCreate} title="Create Owner Account" onClose={() => { setOpenCreate(false); setCreateError(""); }}>
         <div style={{ display: "grid", gap: 10 }}>
           <div>
             <label style={{ fontSize: 13, color: "#64748B", display: "block", marginBottom: 4 }}>
