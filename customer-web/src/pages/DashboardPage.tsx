@@ -188,7 +188,7 @@ export function DashboardPage() {
                             ).toLocaleString()}`}
                       </span>
                       <span>
-                        <Truck size={14} /> {item.id}
+                        <Truck size={14} /> {item.ref_id ?? item.id}
                       </span>
                     </div>
                   </div>

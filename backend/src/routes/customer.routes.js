@@ -72,7 +72,7 @@ router.get(
     `;
 
     const recent = await sql`
-      SELECT id, pickup_address, drop_address, status, scheduled_at, created_at
+      SELECT id, ref_id, pickup_address, drop_address, status, scheduled_at, created_at
       FROM requests
       WHERE customer_id = ${req.user.userId}
       ORDER BY created_at DESC

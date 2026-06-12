@@ -1,4 +1,4 @@
-import { Bell, ChevronDown, MapPin, Menu, Search, User } from "lucide-react";
+import { Bell, ChevronDown, ClipboardList, Home, MapPin, Navigation, Plus, Search, User } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, NavLink } from "react-router-dom";
 import styled from "styled-components";
@@ -45,16 +45,16 @@ const Hook = styled.span`
   transform: rotate(20deg);
 `;
 const SearchRow = styled.div`
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 8px;
+  display: none;
   @media (min-width: 900px) {
+    display: grid;
     grid-template-columns: 200px 1fr auto;
     align-items: center;
+    gap: 8px;
   }
 `;
-const Nav = styled.nav<{ $open: boolean }>`
-  display: ${({ $open }) => ($open ? "flex" : "none")};
+const Nav = styled.nav`
+  display: none;
   flex-wrap: wrap;
   gap: 8px;
   @media (min-width: 900px) {
@@ -76,6 +76,9 @@ const Content = styled.main`
   max-width: 1200px;
   margin: 0 auto;
   padding: 20px 16px 34px;
+  @media (max-width: 899px) {
+    padding-bottom: 80px;
+  }
 `;
 const ProfileWrap = styled.div`
   position: relative;
@@ -127,9 +130,52 @@ const ProfileItem = styled(Link)`
     background: #f1f5f9;
   }
 `;
+const MobileRight = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  @media (min-width: 900px) {
+    display: none;
+  }
+`;
+const BottomBar = styled.nav`
+  display: none;
+  @media (max-width: 899px) {
+    display: flex;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 50;
+    background: #fff;
+    border-top: 1px solid #e2e8f0;
+    padding: 0 8px;
+    padding-bottom: env(safe-area-inset-bottom);
+    align-items: stretch;
+  }
+`;
+const BotItem = styled(NavLink)<{ $primary?: boolean }>`
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  text-decoration: none;
+  padding: 8px 0;
+  color: ${({ $primary }) => ($primary ? "#fff" : "#94a3b8")};
+  background: ${({ $primary }) => ($primary ? "#FF6200" : "transparent")};
+  border-radius: ${({ $primary }) => ($primary ? "12px" : "0")};
+  margin: ${({ $primary }) => ($primary ? "6px 4px" : "0")};
+  transition: color 0.15s;
+  &.active {
+    color: ${({ $primary }) => ($primary ? "#fff" : "#FF6200")};
+  }
+`;
 
 export function CustomerLayout({ children }: { children: React.ReactNode }) {
-  const [open, setOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [authPayload, setAuthPayload] = useState<{
     refreshToken?: string;
@@ -361,13 +407,34 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
               <Hook />
               CraneHub
             </Brand>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => setOpen((s) => !s)}
-            >
-              <Menu size={18} />
-            </Button>
+            <MobileRight>
+              {isAuthenticated ? (
+                <ProfileWrap>
+                  <ProfileButton
+                    onClick={() => setProfileOpen((prev) => !prev)}
+                    aria-label="Open profile menu"
+                  >
+                    <Avatar>{initials || <User size={14} />}</Avatar>
+                    <ChevronDown size={14} />
+                  </ProfileButton>
+                  {profileOpen ? (
+                    <ProfileMenu>
+                      <ProfileItem to="/profile">Profile</ProfileItem>
+                      <button
+                        onClick={() => { setProfileOpen(false); handleLogout(); }}
+                        style={{ textAlign: "left", padding: "8px 10px", borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "#dc2626", fontSize: "0.9rem" }}
+                      >
+                        Logout
+                      </button>
+                    </ProfileMenu>
+                  ) : null}
+                </ProfileWrap>
+              ) : (
+                <Link to="/auth?mode=login">
+                  <Button size="sm">Login</Button>
+                </Link>
+              )}
+            </MobileRight>
           </div>
           <SearchRow>
             <Button variant="outline" onClick={handleUseMyLocation}>
@@ -410,7 +477,7 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
               Save
             </Button>
           </SearchRow>
-          <Nav $open={open}>
+          <Nav>
             <NavItem to="/">How it Works</NavItem>
             {isAuthenticated ? (
               <NavItem to="/dashboard">My Requests</NavItem>
@@ -474,6 +541,34 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
         </HeaderInner>
       </Header>
       <Content>{children}</Content>
+
+      <BottomBar>
+        <BotItem to="/" end>
+          <Home size={20} />
+          Home
+        </BotItem>
+        <BotItem to="/new-request" $primary>
+          <Plus size={20} />
+          Book
+        </BotItem>
+        {isAuthenticated ? (
+          <BotItem to="/dashboard">
+            <ClipboardList size={20} />
+            Requests
+          </BotItem>
+        ) : null}
+        {isAuthenticated ? (
+          <BotItem to="/tracking/latest">
+            <Navigation size={20} />
+            Track
+          </BotItem>
+        ) : (
+          <BotItem to="/auth?mode=login">
+            <User size={20} />
+            Login
+          </BotItem>
+        )}
+      </BottomBar>
     </Shell>
   );
 }

@@ -37,6 +37,20 @@ const StepRow = styled.section`
   grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
   gap: 12px;
 `;
+const HeroSearchGrid = styled.div`
+  margin-top: 14px;
+  display: grid;
+  gap: 10px;
+  max-width: 760px;
+  @media (min-width: 900px) {
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  }
+`;
+const HeroInput = styled(Input)`
+  @media (max-width: 899px) {
+    display: none;
+  }
+`;
 const Footer = styled.footer`
   margin-top: 26px;
   padding: 16px;
@@ -123,23 +137,15 @@ export function HomePage() {
           Compare verified crane owners in Bengaluru, Mumbai, and Delhi. Confirm
           availability, operator details, and best-market pricing in one place.
         </p>
-        <div
-          style={{
-            marginTop: 14,
-            display: "grid",
-            gap: 10,
-            gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
-            maxWidth: 760,
-          }}
-        >
-          <Input placeholder="Enter pincode (e.g. 560066)" />
-          <Input placeholder="Crane variant (e.g. 50T Rough Terrain)" />
+        <HeroSearchGrid>
+          <HeroInput placeholder="Enter pincode (e.g. 560066)" />
+          <HeroInput placeholder="Crane variant (e.g. 50T Rough Terrain)" />
           <Link to="/new-request">
             <Button size="lg" style={{ width: "100%" }}>
-              Search Cranes <ArrowRight size={16} />
+              Book a Crane <ArrowRight size={16} />
             </Button>
           </Link>
-        </div>
+        </HeroSearchGrid>
       </Hero>
 
       <section>

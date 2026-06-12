@@ -256,7 +256,7 @@ export function TrackingPage() {
             }}
           >
             <h1 style={{ margin: 0 }}>
-              Request Detail: {id}
+              Request Detail: {payload?.request?.ref_id ?? id}
             </h1>
             <Badge
               variant={

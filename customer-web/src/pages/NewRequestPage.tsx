@@ -23,6 +23,29 @@ type CraneVariant = {
 
 const Wizard = styled.div`display: grid; gap: 14px;`;
 const Grid = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;`;
+const StickyBar = styled.div<{ $visible: boolean }>`
+  position: fixed;
+  bottom: 76px;
+  left: 50%;
+  transform: translateX(-50%) translateY(${({ $visible }) => ($visible ? "0" : "16px")});
+  opacity: ${({ $visible }) => ($visible ? 1 : 0)};
+  pointer-events: ${({ $visible }) => ($visible ? "auto" : "none")};
+  transition: transform 0.2s ease, opacity 0.2s ease;
+  z-index: 45;
+  background: #0a2540;
+  color: #fff;
+  border-radius: 16px;
+  padding: 10px 12px 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.25);
+  width: calc(100vw - 32px);
+  max-width: 540px;
+  @media (min-width: 900px) {
+    bottom: 28px;
+  }
+`;
 
 export function NewRequestPage() {
   const [step, setStep] = useState(1);
@@ -328,9 +351,6 @@ export function NewRequestPage() {
                 </Card>
               ))}
             </Grid>
-            <Button size="lg" onClick={() => setStep(2)} disabled={!selectedVariant}>
-              Continue to Job Details <MoveRight size={16} />
-            </Button>
           </CardContent>
         </Card>
       )}
@@ -447,6 +467,25 @@ export function NewRequestPage() {
           </CardContent>
         </Card>
       )}
+      <StickyBar $visible={step === 1 && !!selectedVariant}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 700, fontSize: "0.9rem", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {selectedVariant?.name ?? ""}
+          </div>
+          {selectedVariant?.base_charge ? (
+            <div style={{ fontSize: "0.75rem", color: "#94a3b8", marginTop: 1 }}>
+              Rs {Number(selectedVariant.base_charge).toLocaleString()} / {Number(selectedVariant.base_hours ?? 0)}h minimum
+            </div>
+          ) : null}
+        </div>
+        <Button
+          size="sm"
+          onClick={() => setStep(2)}
+          style={{ background: "#FF6200", border: "none", color: "#fff", flexShrink: 0, whiteSpace: "nowrap" }}
+        >
+          Continue <MoveRight size={14} />
+        </Button>
+      </StickyBar>
     </Wizard>
   );
 }

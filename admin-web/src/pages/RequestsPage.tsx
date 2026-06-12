@@ -202,7 +202,7 @@ export function RequestsPage() {
                         fontFamily: "monospace",
                       }}
                     >
-                      REQ-{sid(row.id)}
+                      {row.ref_id ?? `REQ-${sid(row.id)}`}
                     </span>
                   </td>
                   <td

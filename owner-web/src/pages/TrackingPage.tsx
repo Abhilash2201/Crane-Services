@@ -118,7 +118,7 @@ export function TrackingPage() {
   return (
     <Wrap>
       <Card><CardContent style={{ display: "grid", gap: 14 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}><h1 style={{ margin: 0 }}>Request Detail: {id}</h1><Badge variant={resolvedStatus === "working" ? "warning" : "default"}>{resolvedStatus}</Badge></div>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}><h1 style={{ margin: 0 }}>Request Detail: {payload?.request?.ref_id ?? id}</h1><Badge variant={resolvedStatus === "working" ? "warning" : "default"}>{resolvedStatus}</Badge></div>
         {loading ? <small style={{ color: "#64748B" }}>Loading...</small> : null}
         <div style={{ display: "grid", gap: 10 }}>
           <h3 style={{ marginBottom: 0 }}>Status Timeline</h3>
