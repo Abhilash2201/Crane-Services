@@ -8,7 +8,7 @@ async function issueAuthTokens({ user, userAgent, ipAddress }) {
   const accessToken = signToken({ userId: user.id, role: user.role, email: user.email });
   const refreshToken = randomToken();
   const refreshTokenHash = sha256(refreshToken);
-  const expiresAt = new Date(Date.now() + env.refreshTokenExpiresDays * 24 * 60 * 60 * 1000);
+  const expiresAt = new Date(Date.now() + env.refreshTokenExpiresHours * 60 * 60 * 1000);
 
   await sql`
     INSERT INTO refresh_tokens (user_id, token_hash, expires_at, user_agent, ip_address)

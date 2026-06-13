@@ -17,7 +17,7 @@ module.exports = {
   databaseUrl: process.env.DATABASE_URL,
   jwtSecret: process.env.JWT_SECRET,
   jwtExpiresIn: process.env.JWT_EXPIRES_IN || "15m",
-  refreshTokenExpiresDays: Number(process.env.REFRESH_TOKEN_EXPIRES_DAYS || 30),
+  refreshTokenExpiresHours: Number(process.env.REFRESH_TOKEN_EXPIRES_HOURS || 8),
   frontendOrigins: (process.env.CORS_ORIGINS || "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:5176")
     .split(",")
     .map((value) => value.trim())
