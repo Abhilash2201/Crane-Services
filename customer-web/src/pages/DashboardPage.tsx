@@ -21,6 +21,7 @@ const SummaryGrid = styled.div`
 
 type RequestItem = {
   id: string | number;
+  ref_id?: string | null;
   pickup_address: string;
   drop_address?: string | null;
   status: string;
