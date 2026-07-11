@@ -1,6 +1,6 @@
-import { MessageSquare, Phone, ShieldCheck } from "lucide-react";
+import { AlertTriangle, MessageSquare, Phone, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import styled from "styled-components";
 import { toast } from "react-hot-toast";
 import { Badge } from "../components/ui/badge";
@@ -14,6 +14,31 @@ const Wrap = styled.div`
   @media (min-width: 950px) {
     grid-template-columns: 1.2fr 0.8fr;
   }
+`;
+const Overlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(15, 23, 42, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+`;
+const ModalCard = styled.div`
+  background: #fff;
+  border-radius: 20px;
+  padding: 28px 24px 24px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18);
+  display: grid;
+  gap: 20px;
+`;
+const ModalActions = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
 `;
 
 type RequestItem = {
@@ -67,6 +92,8 @@ export function TrackingPage() {
   const [payload, setPayload] = useState<TrackingPayload | null>(null);
   const [loading, setLoading] = useState(true);
   const [cancelling, setCancelling] = useState(false);
+  const [showCancelConfirm, setShowCancelConfirm] = useState(false);
+  const navigate = useNavigate();
   const [mapsReady, setMapsReady] = useState(false);
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<any>(null);
@@ -233,6 +260,7 @@ export function TrackingPage() {
           });
         }
         toast.success("Request cancelled.");
+        navigate("/dashboard?tab=Cancelled");
       })
       .catch((error) => {
         toast.error(
@@ -397,7 +425,7 @@ export function TrackingPage() {
               <Button
                 variant="ghost"
                 style={{ color: "#DC2626" }}
-                onClick={handleCancel}
+                onClick={() => setShowCancelConfirm(true)}
                 disabled={cancelling}
               >
                 {cancelling ? "Cancelling..." : "Cancel Request"}
@@ -406,6 +434,35 @@ export function TrackingPage() {
           </div>
         </CardContent>
       </Card>
+      {showCancelConfirm && (
+        <Overlay onClick={() => setShowCancelConfirm(false)}>
+          <ModalCard onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center" }}>
+              <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#FFF1F2", display: "grid", placeItems: "center" }}>
+                <AlertTriangle size={22} color="#DC2626" />
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: "1.05rem" }}>Cancel Request?</div>
+                <div style={{ color: "#64748B", marginTop: 6, fontSize: "0.95rem" }}>
+                  Are you sure you want to cancel this request? This action cannot be undone.
+                </div>
+              </div>
+            </div>
+            <ModalActions>
+              <Button variant="outline" onClick={() => setShowCancelConfirm(false)} disabled={cancelling}>
+                Keep Request
+              </Button>
+              <Button
+                onClick={() => { setShowCancelConfirm(false); handleCancel(); }}
+                style={{ background: "#DC2626", borderColor: "#DC2626" }}
+                disabled={cancelling}
+              >
+                {cancelling ? "Cancelling..." : "Yes, Cancel"}
+              </Button>
+            </ModalActions>
+          </ModalCard>
+        </Overlay>
+      )}
     </Wrap>
   );
 }

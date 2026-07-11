@@ -1,6 +1,6 @@
 import { Clock3, MapPin, Truck } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import styled from "styled-components";
 import { toast } from "react-hot-toast";
 import { Badge } from "../components/ui/badge";
@@ -46,7 +46,11 @@ const mapStatus = (status: string) => {
 };
 
 export function DashboardPage() {
-  const [tab, setTab] = useState("Active");
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState(() => {
+    const t = searchParams.get("tab");
+    return t === "Cancelled" || t === "Completed" ? t : "Active";
+  });
   const [items, setItems] = useState<RequestItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<{
@@ -232,7 +236,9 @@ export function DashboardPage() {
                 </div>
                 <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
                   <Link to={`/tracking/${item.id}`}>
-                    <Button>View Live Tracking</Button>
+                    <Button>
+                      {mapped.label === "Cancelled" ? "View Details" : "View Live Tracking"}
+                    </Button>
                   </Link>
                   {tab === "Completed" ? (
                     <Button variant="outline">Download Invoice</Button>

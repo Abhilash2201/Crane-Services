@@ -35,6 +35,14 @@ export function AuthPage() {
     () => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),
     [email],
   );
+  const isNameValid = useMemo(
+    () => /^[a-zA-Z\s'-]{2,60}$/.test(name.trim()),
+    [name],
+  );
+  const isPhoneValid = useMemo(
+    () => !phone || /^[6-9]\d{9}$/.test(phone),
+    [phone],
+  );
 
   useEffect(() => {
     const nextMode = searchParams.get("mode");
@@ -70,8 +78,12 @@ export function AuthPage() {
     }
 
     if (mode === "register") {
-      if (!name.trim()) {
-        toast.error("Please enter your name.");
+      if (!isNameValid) {
+        toast.error("Name must be 2–60 characters and contain only letters.");
+        return;
+      }
+      if (!isPhoneValid) {
+        toast.error("Enter a valid 10-digit Indian mobile number.");
         return;
       }
       if (confirmPassword !== password) {
@@ -139,31 +151,43 @@ export function AuthPage() {
 
           {mode === "register" ? (
             <>
-              <label>Full Name</label>
+              <label>Full Name <span style={{ color: "#DC2626" }}>*</span></label>
               <Input
                 placeholder="Your name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
+                style={{ borderColor: name && !isNameValid ? "#DC2626" : undefined }}
               />
+              {name && !isNameValid && (
+                <small style={{ color: "#DC2626" }}>
+                  Letters only, 2–60 characters.
+                </small>
+              )}
               <label>Phone (optional)</label>
               <Input
                 placeholder="98XXXXXXXX"
                 value={phone}
                 onChange={(e) =>
-                  setPhone(e.target.value.replace(/\D/g, "").slice(0, 15))
+                  setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))
                 }
+                style={{ borderColor: phone && !isPhoneValid ? "#DC2626" : undefined }}
               />
+              {phone && !isPhoneValid && (
+                <small style={{ color: "#DC2626" }}>
+                  Must be a valid 10-digit mobile number starting with 6–9.
+                </small>
+              )}
             </>
           ) : null}
 
-          <label>Email</label>
+          <label>Email <span style={{ color: "#DC2626" }}>*</span></label>
           <Input
             type="email"
             placeholder="you@company.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
           />
-          <label>Password</label>
+          <label>Password <span style={{ color: "#DC2626" }}>*</span></label>
           <div style={{ position: "relative" }}>
             <Input
               type={showPassword ? "text" : "password"}
@@ -183,7 +207,7 @@ export function AuthPage() {
           </div>
           {mode === "register" ? (
             <>
-              <label>Confirm Password</label>
+              <label>Confirm Password <span style={{ color: "#DC2626" }}>*</span></label>
               <div style={{ position: "relative" }}>
                 <Input
                   type={showConfirmPassword ? "text" : "password"}

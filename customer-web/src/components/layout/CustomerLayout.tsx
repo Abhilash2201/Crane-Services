@@ -1,6 +1,6 @@
-import { Bell, ChevronDown, ClipboardList, Home, MapPin, Navigation, Plus, Search, User } from "lucide-react";
+import { Bell, ChevronDown, ClipboardList, Home, LogOut, MapPin, Navigation, Plus, Search, User } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { toast } from "react-hot-toast";
 import { Button } from "../ui/button";
@@ -14,9 +14,8 @@ const Header = styled.header`
   position: sticky;
   top: 0;
   z-index: 20;
-  background: rgba(248, 250, 252, 0.92);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
+  background: #0A2540;
+  box-shadow: 0 2px 12px rgba(10, 37, 64, 0.25);
 `;
 const HeaderInner = styled.div`
   max-width: 1200px;
@@ -34,7 +33,7 @@ const Brand = styled(Link)`
   align-items: center;
   gap: 10px;
   font-weight: 800;
-  color: ${({ theme }) => theme.colors.navy};
+  color: #fff;
 `;
 const Hook = styled.span`
   width: 28px;
@@ -47,11 +46,44 @@ const Hook = styled.span`
 const SearchRow = styled.div`
   display: none;
   @media (min-width: 900px) {
-    display: grid;
-    grid-template-columns: 200px 1fr auto;
+    display: flex;
     align-items: center;
-    gap: 8px;
+    position: relative;
   }
+`;
+const LocationPill = styled.button`
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  border-radius: 999px;
+  padding: 6px 12px 6px 10px;
+  font-size: 0.82rem;
+  font-weight: 500;
+  cursor: pointer;
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: background 0.15s;
+  &:hover {
+    background: rgba(255, 255, 255, 0.18);
+  }
+`;
+const LocationDrop = styled.div`
+  position: absolute;
+  top: calc(100% + 10px);
+  left: 0;
+  min-width: 320px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 12px 36px rgba(10, 37, 64, 0.18);
+  padding: 14px;
+  display: grid;
+  gap: 10px;
+  z-index: 60;
 `;
 const Nav = styled.nav`
   display: none;
@@ -66,10 +98,15 @@ const Nav = styled.nav`
 const NavItem = styled(NavLink)`
   padding: 8px 10px;
   border-radius: 10px;
-  color: ${({ theme }) => theme.colors.muted};
+  color: rgba(255, 255, 255, 0.7);
+  font-weight: 500;
+  transition: color 0.15s;
+  &:hover {
+    color: #fff;
+  }
   &.active {
-    color: ${({ theme }) => theme.colors.navy};
-    background: #e2e8f0;
+    color: #fff;
+    background: rgba(255, 255, 255, 0.12);
   }
 `;
 const Content = styled.main`
@@ -87,12 +124,17 @@ const ProfileButton = styled.button`
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  background: #fff;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
   border-radius: 999px;
   padding: 4px 10px 4px 6px;
   font-size: 0.9rem;
   cursor: pointer;
+  transition: background 0.15s;
+  &:hover {
+    background: rgba(255, 255, 255, 0.18);
+  }
 `;
 const Avatar = styled.span`
   width: 28px;
@@ -101,7 +143,7 @@ const Avatar = styled.span`
   align-items: center;
   justify-content: center;
   border-radius: 999px;
-  background: #0f172a;
+  background: #FF6200;
   color: #fff;
   font-size: 0.75rem;
   font-weight: 700;
@@ -148,7 +190,7 @@ const BottomBar = styled.nav`
     right: 0;
     z-index: 50;
     background: #fff;
-    border-top: 1px solid #e2e8f0;
+    box-shadow: 0 -4px 20px rgba(10, 37, 64, 0.12);
     padding: 0 8px;
     padding-bottom: env(safe-area-inset-bottom);
     align-items: stretch;
@@ -174,9 +216,38 @@ const BotItem = styled(NavLink)<{ $primary?: boolean }>`
     color: ${({ $primary }) => ($primary ? "#fff" : "#FF6200")};
   }
 `;
+const Overlay = styled.div`
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+`;
+const ModalCard = styled.div`
+  background: #fff;
+  border-radius: 20px;
+  padding: 28px 24px 24px;
+  width: 100%;
+  max-width: 360px;
+  box-shadow: 0 20px 48px rgba(15, 23, 42, 0.18);
+  display: grid;
+  gap: 20px;
+`;
+const ModalActions = styled.div`
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+`;
 
 export function CustomerLayout({ children }: { children: React.ReactNode }) {
+  const routeLocation = useLocation();
+  const navigate = useNavigate();
   const [profileOpen, setProfileOpen] = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [authPayload, setAuthPayload] = useState<{
     refreshToken?: string;
     user?: { name?: string; email?: string };
@@ -188,11 +259,18 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
   } | null>(null);
   const [locationInput, setLocationInput] = useState("");
   const [locating, setLocating] = useState(false);
+  const [locationDropOpen, setLocationDropOpen] = useState(false);
 
   const isAuthenticated = useMemo(
     () => Boolean(authPayload?.refreshToken),
     [authPayload],
   );
+
+  const shortLocation = useMemo(() => {
+    if (!location?.address) return null;
+    const parts = location.address.split(",").map((s) => s.trim()).filter(Boolean);
+    return parts[2] || parts[1] || parts[0] || null;
+  }, [location?.address]);
   const displayName =
     authPayload?.user?.name ||
     authPayload?.user?.email ||
@@ -220,6 +298,16 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    if (!locationDropOpen) return;
+    const close = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-location-drop]")) setLocationDropOpen(false);
+    };
+    document.addEventListener("mousedown", close);
+    return () => document.removeEventListener("mousedown", close);
+  }, [locationDropOpen]);
+
+  useEffect(() => {
     if (!isAuthenticated) return;
     api
       .get("/auth/me")
@@ -245,6 +333,7 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
       localStorage.removeItem("auth");
       setAuthPayload(null);
       window.dispatchEvent(new Event("auth-changed"));
+      navigate("/");
       return;
     }
     try {
@@ -258,6 +347,7 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
       setAuthPayload(null);
       window.dispatchEvent(new Event("auth-changed"));
       toast.success("Logged out.");
+      navigate("/");
     }
   };
 
@@ -378,6 +468,18 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
     );
   };
 
+  const handleHowItWorks = (e: React.MouseEvent<HTMLAnchorElement>) => {
+    e.preventDefault();
+    const scroll = () =>
+      document.getElementById("how-it-works")?.scrollIntoView({ behavior: "smooth" });
+    if (routeLocation.pathname === "/") {
+      scroll();
+    } else {
+      navigate("/");
+      setTimeout(scroll, 120);
+    }
+  };
+
   const handleAddressSave = async () => {
     const trimmed = locationInput.trim();
     if (trimmed.length < 3) {
@@ -421,7 +523,7 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
                     <ProfileMenu>
                       <ProfileItem to="/profile">Profile</ProfileItem>
                       <button
-                        onClick={() => { setProfileOpen(false); handleLogout(); }}
+                        onClick={() => { setProfileOpen(false); setShowLogoutConfirm(true); }}
                         style={{ textAlign: "left", padding: "8px 10px", borderRadius: 8, border: "none", background: "transparent", cursor: "pointer", color: "#dc2626", fontSize: "0.9rem" }}
                       >
                         Logout
@@ -436,49 +538,45 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
               )}
             </MobileRight>
           </div>
-          <SearchRow>
-            <Button variant="outline" onClick={handleUseMyLocation}>
-              <MapPin size={16} />{" "}
-              {locating
-                ? "Locating..."
-                : location?.address
-                  ? location.address
-                  : "Use my location"}
-            </Button>
-            <div style={{ position: "relative" }}>
-              <Search
-                size={16}
-                style={{
-                  position: "absolute",
-                  left: 10,
-                  top: 14,
-                  color: "#64748B",
-                }}
-              />
-              <Input
-                placeholder="Enter address or pincode"
-                style={{ paddingLeft: 32 }}
-                value={locationInput}
-                onChange={(e) => setLocationInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    handleAddressSave();
-                  }
-                }}
-              />
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleAddressSave}
-              disabled={locating}
-            >
-              Save
-            </Button>
+          <SearchRow data-location-drop>
+            <LocationPill onClick={() => setLocationDropOpen((p) => !p)}>
+              <MapPin size={13} />
+              {locating ? "Locating..." : shortLocation ?? "Set location"}
+              <ChevronDown size={12} style={{ opacity: 0.7, flexShrink: 0 }} />
+            </LocationPill>
+            {locationDropOpen && (
+              <LocationDrop>
+                {location?.address && (
+                  <div style={{ display: "flex", gap: 6, alignItems: "flex-start", color: "#64748B", fontSize: "0.82rem", lineHeight: 1.4 }}>
+                    <MapPin size={13} style={{ marginTop: 2, flexShrink: 0, color: "#FF6200" }} />
+                    {location.address}
+                  </div>
+                )}
+                <div style={{ position: "relative" }}>
+                  <Search size={14} style={{ position: "absolute", left: 10, top: 12, color: "#94a3b8" }} />
+                  <Input
+                    placeholder="Enter address or pincode"
+                    style={{ paddingLeft: 30 }}
+                    value={locationInput}
+                    onChange={(e) => setLocationInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); handleAddressSave(); setLocationDropOpen(false); }
+                    }}
+                  />
+                </div>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <Button variant="outline" size="sm" style={{ flex: 1 }} onClick={handleUseMyLocation} disabled={locating}>
+                    <MapPin size={13} /> {locating ? "Locating..." : "Use my location"}
+                  </Button>
+                  <Button size="sm" onClick={() => { handleAddressSave(); setLocationDropOpen(false); }} disabled={locating}>
+                    Save
+                  </Button>
+                </div>
+              </LocationDrop>
+            )}
           </SearchRow>
           <Nav>
-            <NavItem to="/">How it Works</NavItem>
+            <NavItem to="/#how-it-works" onClick={handleHowItWorks}>How it Works</NavItem>
             {isAuthenticated ? (
               <NavItem to="/dashboard">My Requests</NavItem>
             ) : null}
@@ -504,7 +602,7 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
                     <button
                       onClick={() => {
                         setProfileOpen(false);
-                        handleLogout();
+                        setShowLogoutConfirm(true);
                       }}
                       style={{
                         textAlign: "left",
@@ -534,13 +632,42 @@ export function CustomerLayout({ children }: { children: React.ReactNode }) {
                 </Link>
               </>
             )}
-            <Button variant="ghost" size="sm">
+            <Button variant="ghost" size="sm" style={{ color: "rgba(255,255,255,0.7)" }}>
               <Bell size={16} />
             </Button>
           </Nav>
         </HeaderInner>
       </Header>
       <Content>{children}</Content>
+
+      {showLogoutConfirm && (
+        <Overlay onClick={() => setShowLogoutConfirm(false)}>
+          <ModalCard onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 12, textAlign: "center" }}>
+              <div style={{ width: 52, height: 52, borderRadius: "50%", background: "#FFF1F2", display: "grid", placeItems: "center" }}>
+                <LogOut size={22} color="#DC2626" />
+              </div>
+              <div>
+                <div style={{ fontWeight: 700, fontSize: "1.1rem", color: "#0f172a" }}>Logout?</div>
+                <div style={{ color: "#64748B", fontSize: "0.9rem", marginTop: 4 }}>
+                  You'll be signed out and returned to the home page.
+                </div>
+              </div>
+            </div>
+            <ModalActions>
+              <Button variant="outline" onClick={() => setShowLogoutConfirm(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => { setShowLogoutConfirm(false); handleLogout(); }}
+                style={{ background: "#DC2626", borderColor: "#DC2626" }}
+              >
+                Logout
+              </Button>
+            </ModalActions>
+          </ModalCard>
+        </Overlay>
+      )}
 
       <BottomBar>
         <BotItem to="/" end>

@@ -1,9 +1,6 @@
 import {
   ArrowRight,
-  BadgeCheck,
   Clock3,
-  MapPinned,
-  ShieldCheck,
   Star,
 } from "lucide-react";
 import { useState } from "react";
@@ -177,7 +174,7 @@ export function HomePage() {
         </Grid>
       </section>
 
-      <section>
+      <section id="how-it-works">
         <h2>How it Works</h2>
         <StepRow>
           {[
@@ -239,44 +236,6 @@ export function HomePage() {
         </Card>
       </section>
 
-      <section>
-        <h2>Desktop + Mobile Views</h2>
-        <div
-          style={{
-            display: "grid",
-            gap: 12,
-            gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
-          }}
-        >
-          <Card>
-            <CardContent>
-              <Badge variant="outline">Desktop</Badge>
-              <h3>Operations Dashboard</h3>
-              <p style={{ color: "#64748B" }}>
-                Wide cards, timeline rail, side actions and request funnel.
-              </p>
-              <div style={{ display: "flex", gap: 8, color: "#64748B" }}>
-                <ShieldCheck size={16} /> Verified Owners <Clock3 size={16} />{" "}
-                Fast ETA <Star size={16} /> Rated Operators
-              </div>
-            </CardContent>
-          </Card>
-          <Card>
-            <CardContent>
-              <Badge variant="outline">Mobile</Badge>
-              <h3>Field-Friendly Touch UI</h3>
-              <p style={{ color: "#64748B" }}>
-                Large buttons, stacked forms, one-tap call/chat, live location
-                pin.
-              </p>
-              <div style={{ display: "flex", gap: 8, color: "#64748B" }}>
-                <MapPinned size={16} /> Geo picker <BadgeCheck size={16} /> OTP
-                login
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-      </section>
 
       <Footer>
         <span>CraneHub India Pvt Ltd | GSTIN 29AACCC9283D1ZX</span>

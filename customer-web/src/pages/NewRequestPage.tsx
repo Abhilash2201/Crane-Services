@@ -23,6 +23,31 @@ type CraneVariant = {
 
 const Wizard = styled.div`display: grid; gap: 14px;`;
 const Grid = styled.div`display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px;`;
+const SuggestionList = styled.ul`
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  z-index: 30;
+  background: #fff;
+  border: 1px solid #E2E8F0;
+  border-radius: 12px;
+  padding: 4px;
+  margin: 0;
+  list-style: none;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.1);
+  max-height: 220px;
+  overflow-y: auto;
+`;
+const SuggestionItem = styled.li`
+  padding: 8px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: #0f172a;
+  line-height: 1.4;
+  &:hover { background: #F1F5F9; }
+`;
 const StickyBar = styled.div<{ $visible: boolean }>`
   position: fixed;
   bottom: 76px;
@@ -62,14 +87,30 @@ export function NewRequestPage() {
   const [notes, setNotes] = useState("");
   const [photos, setPhotos] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [pickupTouched, setPickupTouched] = useState(false);
+  const [scheduledAtTouched, setScheduledAtTouched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [mapsReady, setMapsReady] = useState(false);
+  const [pickupSuggestions, setPickupSuggestions] = useState<string[]>([]);
+  const [dropSuggestions, setDropSuggestions] = useState<string[]>([]);
+  const [pickupOpen, setPickupOpen] = useState(false);
+  const [dropOpen, setDropOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const pickupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dropTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /* Google Maps refs (commented — replaced by Nominatim)
   const pickupInputRef = useRef<HTMLInputElement | null>(null);
   const dropInputRef = useRef<HTMLInputElement | null>(null);
   const pickupAutocompleteRef = useRef<any>(null);
   const dropAutocompleteRef = useRef<any>(null);
+  const [mapsReady, setMapsReady] = useState(false);
+  */
   const navigate = useNavigate();
+
+  const isDurationValid = useMemo(() => {
+    if (!durationHours) return true;
+    const val = Number(durationHours);
+    return !Number.isNaN(val) && val >= 1 && val <= 72;
+  }, [durationHours]);
 
   useEffect(() => {
     api
@@ -97,15 +138,11 @@ export function NewRequestPage() {
     [selectedVariantId, variants]
   );
 
+  /* Google Maps script loader + autocomplete (commented — replaced by Nominatim)
   useEffect(() => {
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined;
     if (!apiKey) return;
-
-    if ((window as any).google?.maps?.places) {
-      setMapsReady(true);
-      return;
-    }
-
+    if ((window as any).google?.maps?.places) { setMapsReady(true); return; }
     const scriptId = "google-maps-places";
     const existing = document.getElementById(scriptId) as HTMLScriptElement | null;
     if (existing) {
@@ -113,16 +150,13 @@ export function NewRequestPage() {
       existing.addEventListener("load", onLoad);
       return () => existing.removeEventListener("load", onLoad);
     }
-
     const script = document.createElement("script");
     script.id = scriptId;
     script.src = `https://maps.googleapis.com/maps/api/js?key=${apiKey}&libraries=places`;
-    script.async = true;
-    script.defer = true;
+    script.async = true; script.defer = true;
     const onLoad = () => setMapsReady(true);
     script.addEventListener("load", onLoad);
     document.head.appendChild(script);
-
     return () => script.removeEventListener("load", onLoad);
   }, []);
 
@@ -130,53 +164,49 @@ export function NewRequestPage() {
     if (!mapsReady || step !== 2) return;
     const google = (window as any).google;
     if (!google?.maps?.places) return;
-
     const restrictions = { country: ["in"] };
-    const bounds = new google.maps.LatLngBounds(
-      { lat: 12.7343, lng: 77.3792 },
-      { lat: 13.1737, lng: 77.8827 }
-    );
-
+    const bounds = new google.maps.LatLngBounds({ lat: 12.7343, lng: 77.3792 }, { lat: 13.1737, lng: 77.8827 });
     if (pickupInputRef.current && !pickupAutocompleteRef.current) {
-      const pickupAutocomplete = new google.maps.places.Autocomplete(
-        pickupInputRef.current,
-        {
-          fields: ["formatted_address"],
-          types: ["geocode"],
-          componentRestrictions: restrictions,
-          bounds,
-          strictBounds: true,
-        }
-      );
-      pickupAutocomplete.addListener("place_changed", () => {
-        const place = pickupAutocomplete.getPlace();
-        if (place?.formatted_address) {
-          setPickupAddress(place.formatted_address);
-        }
-      });
-      pickupAutocompleteRef.current = pickupAutocomplete;
+      const ac = new google.maps.places.Autocomplete(pickupInputRef.current, { fields: ["formatted_address"], types: ["geocode"], componentRestrictions: restrictions, bounds, strictBounds: true });
+      ac.addListener("place_changed", () => { const p = ac.getPlace(); if (p?.formatted_address) setPickupAddress(p.formatted_address); });
+      pickupAutocompleteRef.current = ac;
     }
-
     if (dropInputRef.current && !dropAutocompleteRef.current) {
-      const dropAutocomplete = new google.maps.places.Autocomplete(
-        dropInputRef.current,
-        {
-          fields: ["formatted_address"],
-          types: ["geocode"],
-          componentRestrictions: restrictions,
-          bounds,
-          strictBounds: true,
-        }
-      );
-      dropAutocomplete.addListener("place_changed", () => {
-        const place = dropAutocomplete.getPlace();
-        if (place?.formatted_address) {
-          setDropAddress(place.formatted_address);
-        }
-      });
-      dropAutocompleteRef.current = dropAutocomplete;
+      const ac = new google.maps.places.Autocomplete(dropInputRef.current, { fields: ["formatted_address"], types: ["geocode"], componentRestrictions: restrictions, bounds, strictBounds: true });
+      ac.addListener("place_changed", () => { const p = ac.getPlace(); if (p?.formatted_address) setDropAddress(p.formatted_address); });
+      dropAutocompleteRef.current = ac;
     }
   }, [mapsReady, step]);
+  */
+
+  const fetchNominatim = async (query: string, setter: (s: string[]) => void) => {
+    if (query.trim().length < 3) { setter([]); return; }
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&countrycodes=in&limit=6&addressdetails=0`,
+        { headers: { "Accept-Language": "en" } }
+      );
+      const data: { display_name: string }[] = await res.json();
+      setter(data.map((d) => d.display_name));
+    } catch {
+      setter([]);
+    }
+  };
+
+  const handlePickupChange = (val: string) => {
+    setPickupAddress(val);
+    setPickupTouched(false);
+    if (pickupTimerRef.current) clearTimeout(pickupTimerRef.current);
+    pickupTimerRef.current = setTimeout(() => fetchNominatim(val, setPickupSuggestions), 400);
+    setPickupOpen(true);
+  };
+
+  const handleDropChange = (val: string) => {
+    setDropAddress(val);
+    if (dropTimerRef.current) clearTimeout(dropTimerRef.current);
+    dropTimerRef.current = setTimeout(() => fetchNominatim(val, setDropSuggestions), 400);
+    setDropOpen(true);
+  };
 
   useEffect(() => {
     const variantId = selectedVariant?.id;
@@ -361,39 +391,82 @@ export function NewRequestPage() {
             <h3 style={{ margin: 0 }}>Job Details</h3>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))", gap: 10 }}>
               <div>
-                <label><MapPinned size={14} /> Job Location (Google Maps Picker)</label>
+                <label><MapPinned size={14} /> Job Location <span style={{ color: "#DC2626" }}>*</span></label>
                 <div style={{ marginTop: 6, height: 140, borderRadius: 12, border: "1px solid #E2E8F0", display: "grid", placeItems: "center", background: "linear-gradient(120deg,#dbeafe,#f1f5f9)" }}>
                   Map picker placeholder
                 </div>
-                <Input
-                  ref={pickupInputRef}
-                  placeholder="Pickup address"
-                  style={{ marginTop: 8 }}
-                  value={pickupAddress}
-                  onChange={(e) => setPickupAddress(e.target.value)}
-                />
-                <Input
-                  ref={dropInputRef}
-                  placeholder="Drop address (optional)"
-                  style={{ marginTop: 8 }}
-                  value={dropAddress}
-                  onChange={(e) => setDropAddress(e.target.value)}
-                />
+                <div style={{ position: "relative", marginTop: 8 }}>
+                  <Input
+                    placeholder="Pickup address"
+                    style={{ borderColor: pickupTouched && !pickupAddress.trim() ? "#DC2626" : undefined }}
+                    value={pickupAddress}
+                    onChange={(e) => handlePickupChange(e.target.value)}
+                    onFocus={() => setPickupOpen(true)}
+                    onBlur={() => setTimeout(() => setPickupOpen(false), 150)}
+                    autoComplete="off"
+                  />
+                  {pickupOpen && pickupSuggestions.length > 0 && (
+                    <SuggestionList>
+                      {pickupSuggestions.map((s, i) => (
+                        <SuggestionItem
+                          key={i}
+                          onMouseDown={() => { setPickupAddress(s); setPickupSuggestions([]); setPickupOpen(false); setPickupTouched(false); }}
+                        >
+                          {s}
+                        </SuggestionItem>
+                      ))}
+                    </SuggestionList>
+                  )}
+                  {pickupTouched && !pickupAddress.trim() && (
+                    <small style={{ color: "#DC2626" }}>Pickup address is required.</small>
+                  )}
+                </div>
+                <div style={{ position: "relative", marginTop: 8 }}>
+                  <Input
+                    placeholder="Drop address (optional)"
+                    value={dropAddress}
+                    onChange={(e) => handleDropChange(e.target.value)}
+                    onFocus={() => setDropOpen(true)}
+                    onBlur={() => setTimeout(() => setDropOpen(false), 150)}
+                    autoComplete="off"
+                  />
+                  {dropOpen && dropSuggestions.length > 0 && (
+                    <SuggestionList>
+                      {dropSuggestions.map((s, i) => (
+                        <SuggestionItem
+                          key={i}
+                          onMouseDown={() => { setDropAddress(s); setDropSuggestions([]); setDropOpen(false); }}
+                        >
+                          {s}
+                        </SuggestionItem>
+                      ))}
+                    </SuggestionList>
+                  )}
+                </div>
               </div>
               <div>
-                <label><CalendarClock size={14} /> Date & Time</label>
+                <label>
+                  <CalendarClock size={14} /> Date & Time <span style={{ color: "#DC2626" }}>*</span>
+                </label>
                 <Input
                   type="datetime-local"
-                  style={{ marginTop: 6 }}
+                  style={{ marginTop: 6, borderColor: scheduledAtTouched && !scheduledAt ? "#DC2626" : undefined }}
                   value={scheduledAt}
-                  onChange={(e) => setScheduledAt(e.target.value)}
+                  onChange={(e) => { setScheduledAt(e.target.value); setScheduledAtTouched(true); }}
                 />
+                {scheduledAtTouched && !scheduledAt && (
+                  <small style={{ color: "#DC2626" }}>Date & Time is required.</small>
+                )}
                 <label style={{ display: "block", marginTop: 10 }}>Duration (hours)</label>
                 <Input
                   placeholder="4"
                   value={durationHours}
                   onChange={(e) => setDurationHours(e.target.value.replace(/[^\d.]/g, ""))}
+                  style={{ borderColor: durationHours && !isDurationValid ? "#DC2626" : undefined }}
                 />
+                {durationHours && !isDurationValid && (
+                  <small style={{ color: "#DC2626" }}>Enter a value between 1 and 72 hours.</small>
+                )}
               </div>
             </div>
             <label>Load Description</label>
@@ -430,7 +503,17 @@ export function NewRequestPage() {
             ) : null}
             <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
               <Button variant="outline" onClick={() => setStep(1)}>Back</Button>
-              <Button size="lg" onClick={() => setStep(3)}>Review Request</Button>
+              <Button
+                size="lg"
+                onClick={() => {
+                  if (!pickupAddress.trim()) { setPickupTouched(true); return; }
+                  if (!scheduledAt) { setScheduledAtTouched(true); return; }
+                  if (!isDurationValid) return;
+                  setStep(3);
+                }}
+              >
+                Review Request
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -445,8 +528,11 @@ export function NewRequestPage() {
                 <p><b>Variant:</b> {selectedVariant?.name || "-"}</p>
                 <p><b>Pickup:</b> {pickupAddress || "-"}</p>
                 <p><b>Drop:</b> {dropAddress || "-"}</p>
-                <p><b>Schedule:</b> {scheduledAt || "-"}</p>
+                <p><b>Schedule:</b> {scheduledAt ? new Date(scheduledAt).toLocaleString() : "-"}</p>
                 <p><b>Duration:</b> {durationHours ? `${durationHours} hrs` : "-"}</p>
+                <p><b>Load Description:</b> {loadDescription || "-"}</p>
+                <p><b>Special Instructions:</b> {notes || "-"}</p>
+                <p><b>Site Photos:</b> {photos.length ? `${photos.length} photo${photos.length > 1 ? "s" : ""} selected` : "None"}</p>
                 <p>
                   <b>Estimated Price:</b>{" "}
                   {estimatedPrice ? `Rs ${estimatedPrice.toLocaleString()}` : "-"}
