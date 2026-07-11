@@ -127,7 +127,7 @@ export function ProfilePage() {
             <div>
               <div style={{ fontWeight: 700, fontSize: 18 }}>{form.name || user?.name || "Customer"}</div>
               <div style={{ color: "#64748B", fontSize: 14 }}>{form.email || user?.email}</div>
-              <Badge style={{ marginTop: 6 }}>{user?.role || "customer"}</Badge>
+              <div style={{ marginTop: 6 }}><Badge>{user?.role || "customer"}</Badge></div>
             </div>
           </div>
 

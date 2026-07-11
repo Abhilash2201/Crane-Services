@@ -1,8 +1,4 @@
-import {
-  ArrowRight,
-  Clock3,
-  Star,
-} from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import styled from "styled-components";
