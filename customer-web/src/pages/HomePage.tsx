@@ -124,10 +124,7 @@ export function HomePage() {
   return (
     <div style={{ display: "grid", gap: 22 }}>
       <Hero>
-        <Badge variant="outline">
-          Trusted by 1,400+ contractors across India
-        </Badge>
-        <h1 style={{ fontSize: "clamp(2rem, 4vw, 3rem)", margin: "10px 0" }}>
+        <h1 style={{ fontSize: "clamp(1.6rem, 4vw, 3rem)", margin: "0 0 10px" }}>
           Book Any Crane in Minutes
         </h1>
         <p style={{ maxWidth: 640, color: "#e2e8f0" }}>

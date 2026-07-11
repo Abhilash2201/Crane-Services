@@ -14,6 +14,9 @@ const Title = styled.h3`
 `;
 const Content = styled.div`
   padding: 16px 18px;
+  @media (max-width: 899px) {
+    padding: 12px 14px;
+  }
 `;
 
 export function Card(props: HTMLAttributes<HTMLDivElement>) {

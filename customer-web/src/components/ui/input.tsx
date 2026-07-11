@@ -9,10 +9,16 @@ const StyledInput = styled.input`
   padding: 0 12px;
   background: ${({ theme }) => theme.colors.white};
   font: inherit;
+  font-size: 0.9rem;
   &:focus {
     outline: none;
     border-color: ${({ theme }) => theme.colors.primary};
     box-shadow: 0 0 0 3px rgba(255, 98, 0, 0.12);
+  }
+  @media (max-width: 899px) {
+    min-height: 40px;
+    font-size: 0.875rem;
+    border-radius: 10px;
   }
 `;
 

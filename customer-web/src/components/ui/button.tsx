@@ -28,20 +28,31 @@ const StyledButton = styled.button<ButtonProps>`
   align-items: center;
   justify-content: center;
   gap: 8px;
+  font-size: 0.9rem;
   ${({ size }) =>
     size === "sm"
       ? css`
-          padding: 8px 12px;
-          min-height: 36px;
+          padding: 6px 12px;
+          min-height: 34px;
+          font-size: 0.82rem;
         `
       : size === "lg"
         ? css`
-            padding: 14px 18px;
-            min-height: 50px;
+            padding: 13px 18px;
+            min-height: 48px;
+            @media (max-width: 899px) {
+              padding: 10px 14px;
+              min-height: 42px;
+              font-size: 0.9rem;
+            }
           `
         : css`
-            padding: 11px 14px;
-            min-height: 42px;
+            padding: 10px 14px;
+            min-height: 40px;
+            @media (max-width: 899px) {
+              padding: 8px 12px;
+              min-height: 36px;
+            }
           `}
   ${({ theme, variant }) => {
     if (variant === "outline")

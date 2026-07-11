@@ -11,12 +11,18 @@ const Item = styled.button<{ $active: boolean }>`
       $active ? theme.colors.primary : theme.colors.border};
   background: ${({ theme, $active }) =>
     $active ? "#fff3ec" : theme.colors.white};
-  color: ${({ theme }) => theme.colors.navy};
-  min-height: 42px;
+  color: ${({ $active, theme }) => ($active ? theme.colors.primary : theme.colors.navy)};
+  min-height: 38px;
   padding: 0 14px;
   border-radius: 999px;
   font-weight: 600;
+  font-size: 0.875rem;
   cursor: pointer;
+  @media (max-width: 899px) {
+    min-height: 32px;
+    padding: 0 12px;
+    font-size: 0.8rem;
+  }
 `;
 
 export function Tabs({
