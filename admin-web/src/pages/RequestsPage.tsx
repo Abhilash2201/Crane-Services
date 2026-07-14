@@ -1,14 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "../components/ui/card";
+import { Card, CardContent } from "../components/ui/card";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
 import { Badge } from "../components/ui/badge";
 import { Modal } from "../components/ui/modal";
+import { AppDataTable } from "../components/ui/datatable";
+import type { ColumnDef } from "../components/ui/datatable";
 import { createRealtimeSocket } from "../lib/realtime";
 import { api, authStore } from "../lib/api";
 
@@ -18,12 +15,67 @@ const statusVariant = (status: string) => {
   if (status === "completed") return "success" as const;
   if (status === "pending") return "warning" as const;
   if (status === "in_progress") return "info" as const;
-  if (status === "accepted") return "default" as const;
-  return "warning" as const;
+  if (status === "accepted") return "teal" as const;
+  if (status === "cancelled") return "danger" as const;
+  return "default" as const;
 };
 
+const columns: ColumnDef[] = [
+  {
+    field: "ref_id",
+    header: "Request ID",
+    sortable: true,
+    body: (row) => (
+      <span
+        style={{
+          background: "#F1F5F9",
+          color: "#475569",
+          borderRadius: 6,
+          padding: "2px 8px",
+          fontSize: 11,
+          fontWeight: 700,
+          fontFamily: "monospace",
+        }}
+      >
+        {row.ref_id ?? `REQ-${sid(row.id)}`}
+      </span>
+    ),
+  },
+  {
+    field: "customer_name",
+    header: "Customer",
+    sortable: true,
+    body: (row) => row.customer_name || "—",
+  },
+  {
+    field: "pickup_address",
+    header: "Pickup Address",
+    body: (row) => row.pickup_address || "—",
+  },
+  {
+    field: "created_at",
+    header: "Date/Time",
+    sortable: true,
+    body: (row) =>
+      row.created_at ? new Date(row.created_at).toLocaleString() : "—",
+  },
+  {
+    field: "status",
+    header: "Status",
+    sortable: true,
+    body: (row) => (
+      <Badge variant={statusVariant(row.status)}>{row.status}</Badge>
+    ),
+  },
+  {
+    field: "owner_name",
+    header: "Accepted Owner",
+    sortable: true,
+    body: (row) => row.owner_name || "—",
+  },
+];
+
 export function RequestsPage() {
-  const [query, setQuery] = useState("");
   const [status, setStatus] = useState("All");
   const [date, setDate] = useState("");
   const [rows, setRows] = useState<any[]>([]);
@@ -64,61 +116,22 @@ export function RequestsPage() {
       .finally(() => setLoading(false));
   }, []);
 
+  // AppDataTable handles text search; we only pre-filter by status and date
   const filtered = useMemo(
     () =>
       rows
-        .filter((row) =>
-          `${row.id} ${row.customer_name || ""}`
-            .toLowerCase()
-            .includes(query.toLowerCase()),
-        )
-        .filter((row) =>
-          status === "All" ? true : row.status === status,
-        )
+        .filter((row) => (status === "All" ? true : row.status === status))
         .filter((row) => {
           if (!date) return true;
           if (!row.created_at) return false;
           return new Date(row.created_at).toISOString().slice(0, 10) === date;
         }),
-    [rows, query, status, date],
+    [rows, status, date],
   );
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>All Service Requests</CardTitle>
-      </CardHeader>
       <CardContent>
-        <div
-          style={{
-            display: "grid",
-            gridTemplateColumns: "2fr 1fr 1fr",
-            gap: 8,
-            marginBottom: 12,
-          }}
-        >
-          <Input
-            placeholder="Search Request ID or Customer"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          <Select
-            value={status}
-            onChange={(event) => setStatus(event.target.value)}
-          >
-            <option>All</option>
-            <option value="pending">Pending</option>
-            <option value="accepted">Accepted</option>
-            <option value="in_progress">In Progress</option>
-            <option value="completed">Completed</option>
-          </Select>
-          <Input
-            type="date"
-            value={date}
-            onChange={(event) => setDate(event.target.value)}
-          />
-        </div>
-
         {liveEvents.length ? (
           <div
             style={{
@@ -140,105 +153,37 @@ export function RequestsPage() {
           </div>
         ) : null}
 
-        <div style={{ overflow: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                {[
-                  "Request ID",
-                  "Customer",
-                  "Pickup Address",
-                  "Date/Time",
-                  "Status",
-                  "Accepted Owner",
-                ].map((head) => (
-                  <th
-                    key={head}
-                    style={{
-                      textAlign: "left",
-                      borderBottom: "1px solid #E2E8F0",
-                      padding: 10,
-                      fontSize: 12,
-                      color: "#64748B",
-                    }}
-                  >
-                    {head}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={6} style={{ padding: 12 }}>
-                    Loading requests...
-                  </td>
-                </tr>
-              ) : null}
-              {!loading && filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={6} style={{ padding: 12 }}>
-                    No requests found.
-                  </td>
-                </tr>
-              ) : null}
-              {filtered.map((row) => (
-                <tr
-                  key={row.id}
-                  style={{ cursor: "pointer" }}
-                  onClick={() => setSelected(row)}
-                >
-                  <td
-                    style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
-                  >
-                    <span
-                      style={{
-                        background: "#F1F5F9",
-                        color: "#475569",
-                        borderRadius: 6,
-                        padding: "2px 8px",
-                        fontSize: 11,
-                        fontWeight: 700,
-                        fontFamily: "monospace",
-                      }}
-                    >
-                      {row.ref_id ?? `REQ-${sid(row.id)}`}
-                    </span>
-                  </td>
-                  <td
-                    style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
-                  >
-                    {row.customer_name || "—"}
-                  </td>
-                  <td
-                    style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
-                  >
-                    {row.pickup_address || "—"}
-                  </td>
-                  <td
-                    style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
-                  >
-                    {row.created_at
-                      ? new Date(row.created_at).toLocaleString()
-                      : "—"}
-                  </td>
-                  <td
-                    style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
-                  >
-                    <Badge variant={statusVariant(row.status)}>
-                      {row.status}
-                    </Badge>
-                  </td>
-                  <td
-                    style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}
-                  >
-                    {row.owner_name || "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <AppDataTable
+          data={filtered}
+          columns={columns}
+          loading={loading}
+          onRowClick={setSelected}
+          searchable
+          searchPlaceholder="Search ID, customer, address…"
+          searchFields={["ref_id", "customer_name", "pickup_address", "owner_name", "status"]}
+          filters={
+            <>
+              <Select
+                value={status}
+                onChange={(e) => setStatus(e.target.value)}
+                style={{ width: 140, minHeight: 36, fontSize: 13 }}
+              >
+                <option>All</option>
+                <option value="pending">Pending</option>
+                <option value="accepted">Accepted</option>
+                <option value="in_progress">In Progress</option>
+                <option value="completed">Completed</option>
+              </Select>
+              <Input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                style={{ width: 140, minHeight: 36, fontSize: 13 }}
+              />
+            </>
+          }
+          emptyMessage="No requests found."
+        />
 
         <Modal
           open={Boolean(selected)}
@@ -260,7 +205,7 @@ export function RequestsPage() {
                     marginRight: 8,
                   }}
                 >
-                  REQ-{sid(selected.id)}
+                  {selected.ref_id ?? `REQ-${sid(selected.id)}`}
                 </span>
                 {selected.customer_name || "Customer"}
               </strong>

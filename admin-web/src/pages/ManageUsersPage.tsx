@@ -1,26 +1,25 @@
-import { useEffect, useMemo, useState } from "react";
+import { Eye, EyeOff, X } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import styled from "styled-components";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "../components/ui/card";
+import { Card, CardContent } from "../components/ui/card";
 import { Tabs } from "../components/ui/tabs";
 import { Input } from "../components/ui/input";
 import { Select } from "../components/ui/select";
-import { Switch } from "../components/ui/switch";
 import { Button } from "../components/ui/button";
 import { Modal } from "../components/ui/modal";
+import { ActionMenu } from "../components/ui/action-menu";
+import { AppDataTable } from "../components/ui/datatable";
+import type { ColumnDef } from "../components/ui/datatable";
 import { api } from "../lib/api";
 
 const EMPTY_OWNER_FORM = { name: "", email: "", phone: "", password: "" };
 
+// Used only by the Drivers grouped table
 const Filters = styled.div`
   display: grid;
   grid-template-columns: 2fr 1fr;
   gap: 10px;
-  margin-bottom: 12px;
+  margin: 12px 0;
 
   @media (max-width: 980px) {
     grid-template-columns: 1fr;
@@ -56,6 +55,48 @@ const Table = styled.table`
   }
 `;
 
+function StatusBadge({
+  active,
+  onClick,
+}: {
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={active ? "Click to suspend" : "Click to activate"}
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 5,
+        padding: "3px 9px",
+        borderRadius: 20,
+        border: "none",
+        background: active ? "#DCFCE7" : "#F1F5F9",
+        color: active ? "#16A34A" : "#94A3B8",
+        cursor: "pointer",
+        fontSize: 11,
+        fontWeight: 600,
+        letterSpacing: "0.2px",
+        whiteSpace: "nowrap",
+      }}
+    >
+      <span
+        style={{
+          width: 5,
+          height: 5,
+          borderRadius: "50%",
+          background: "currentColor",
+          flexShrink: 0,
+        }}
+      />
+      {active ? "Active" : "Inactive"}
+    </button>
+  );
+}
+
 function UserRow({
   user,
   showOwner,
@@ -81,18 +122,24 @@ function UserRow({
           : "—"}
       </td>
       <td>
-        <Switch
-          checked={Boolean(user.is_active)}
-          onCheckedChange={(next) => onToggle(user.id, next)}
-          ariaLabel="status"
+        <StatusBadge
+          active={Boolean(user.is_active)}
+          onClick={() => onToggle(user.id, !user.is_active)}
         />
       </td>
       <td>
-        <div style={{ display: "flex", gap: 6 }}>
-          <Button size="sm" variant="outline">View</Button>
-          <Button size="sm" variant="outline">Suspend</Button>
-          <Button size="sm" variant="danger">Delete</Button>
-        </div>
+        <ActionMenu
+          items={[
+            { label: "View", icon: "pi pi-eye" },
+            {
+              label: user.is_active ? "Suspend" : "Activate",
+              icon: "pi pi-ban",
+              command: () => onToggle(user.id, !user.is_active),
+            },
+            { separator: true },
+            { label: "Delete", icon: "pi pi-trash", className: "menu-item-danger" },
+          ]}
+        />
       </td>
     </tr>
   );
@@ -109,7 +156,8 @@ export function ManageUsersPage() {
   const [createForm, setCreateForm] = useState(EMPTY_OWNER_FORM);
   const [createError, setCreateError] = useState("");
   const [creating, setCreating] = useState(false);
-  const [tempPassword, setTempPassword] = useState("");
+  const [tempPassword, setTempPassword] = useState<{ password: string; email: string } | null>(null);
+  const [showCreatePassword, setShowCreatePassword] = useState(false);
 
   useEffect(() => {
     api
@@ -125,28 +173,63 @@ export function ManageUsersPage() {
     Drivers: "driver",
   };
 
-  const filtered = useMemo(() => {
-    return rows
-      .filter((user) => user.role === roleMap[tab])
-      .filter((user) =>
-        `${user.name} ${user.phone} ${user.email}`
-          .toLowerCase()
-          .includes(query.toLowerCase()),
-      )
-      .filter((user) =>
-        status === "All"
-          ? true
-          : status === "Active"
-            ? user.is_active
-            : !user.is_active,
-      );
-  }, [rows, tab, query, status]);
+  const handleToggle = useCallback(
+    (id: string, next: boolean) => {
+      api
+        .patch(`/admin/users/${id}/status`, { isActive: next })
+        .then((res) => {
+          const updated = res.data?.data;
+          if (!updated) return;
+          setRows((prev) =>
+            prev.map((row) =>
+              row.id === id ? { ...row, is_active: updated.is_active } : row,
+            ),
+          );
+        })
+        .catch(() => {});
+    },
+    [],
+  );
 
-  // Group drivers by owner for the Drivers tab
+  // Data for AppDataTable (Customers / Crane Owners) — filtered by role + status
+  // AppDataTable handles text search internally
+  const tableData = useMemo(
+    () =>
+      rows
+        .filter((user) => user.role === roleMap[tab])
+        .filter((user) =>
+          status === "All"
+            ? true
+            : status === "Active"
+              ? user.is_active
+              : !user.is_active,
+        ),
+    [rows, tab, status],
+  );
+
+  // Data for Drivers tab — filtered by role + query + status (custom grouped table)
+  const driversFiltered = useMemo(
+    () =>
+      rows
+        .filter((user) => user.role === "driver")
+        .filter((user) =>
+          `${user.name} ${user.phone} ${user.email}`
+            .toLowerCase()
+            .includes(query.toLowerCase()),
+        )
+        .filter((user) =>
+          status === "All"
+            ? true
+            : status === "Active"
+              ? user.is_active
+              : !user.is_active,
+        ),
+    [rows, query, status],
+  );
+
   const driverGroups = useMemo(() => {
-    if (tab !== "Drivers") return null;
     const groups: Record<string, { ownerName: string; drivers: any[] }> = {};
-    for (const user of filtered) {
+    for (const user of driversFiltered) {
       const key = user.owner_id || "__unassigned__";
       if (!groups[key]) {
         groups[key] = {
@@ -156,16 +239,67 @@ export function ManageUsersPage() {
       }
       groups[key].drivers.push(user);
     }
-    // Unassigned last
     return Object.entries(groups).sort(([a], [b]) =>
-      a === "__unassigned__" ? 1 : b === "__unassigned__" ? -1 : 0
+      a === "__unassigned__" ? 1 : b === "__unassigned__" ? -1 : 0,
     );
-  }, [filtered, tab]);
+  }, [driversFiltered]);
+
+  const userColumns: ColumnDef[] = useMemo(
+    () => [
+      { field: "name", header: "Name", sortable: true },
+      { field: "phone", header: "Phone", body: (row) => row.phone || "—" },
+      { field: "email", header: "Email", sortable: true },
+      {
+        field: "created_at",
+        header: "Joined Date",
+        sortable: true,
+        body: (row) =>
+          row.created_at ? new Date(row.created_at).toLocaleDateString() : "—",
+      },
+      {
+        field: "is_active",
+        header: "Status",
+        body: (row) => (
+          <StatusBadge
+            active={Boolean(row.is_active)}
+            onClick={() => handleToggle(row.id, !row.is_active)}
+          />
+        ),
+      },
+      {
+        field: "actions",
+        header: "Actions",
+        width: "52px",
+        align: "center" as const,
+        body: (row) => (
+          <ActionMenu
+            items={[
+              { label: "View", icon: "pi pi-eye" },
+              {
+                label: row.is_active ? "Suspend" : "Activate",
+                icon: "pi pi-ban",
+                command: () => handleToggle(row.id, !row.is_active),
+              },
+              { separator: true },
+              { label: "Delete", icon: "pi pi-trash", className: "menu-item-danger" },
+            ]}
+          />
+        ),
+      },
+    ],
+    [handleToggle],
+  );
 
   const handleCreateOwner = async () => {
     setCreateError("");
     if (!createForm.name.trim()) { setCreateError("Name is required."); return; }
+    if (!/[a-zA-Z]/.test(createForm.name)) { setCreateError("Enter a valid name."); return; }
     if (!createForm.email.trim()) { setCreateError("Email is required."); return; }
+
+    if (createForm.password && createForm.password.length < 6) {
+      setCreateError("Password must be at least 6 characters.");
+      return;
+    }
 
     setCreating(true);
     try {
@@ -179,7 +313,7 @@ export function ManageUsersPage() {
       setRows((prev) => [owner, ...prev]);
       setCreateForm(EMPTY_OWNER_FORM);
       setOpenCreate(false);
-      if (tp) setTempPassword(tp);
+      if (tp) setTempPassword({ password: tp, email: owner.email });
       setTab("Crane Owners");
     } catch (err: any) {
       setCreateError(err?.response?.data?.message || "Unable to create owner.");
@@ -190,82 +324,92 @@ export function ManageUsersPage() {
 
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Manage Users</CardTitle>
-      </CardHeader>
       <CardContent>
         <Tabs options={["Customers", "Crane Owners", "Drivers"]} value={tab} onChange={setTab} />
 
         {tempPassword && (
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "10px 14px", fontSize: 13, color: "#15803D", margin: "12px 0" }}>
-            <span>Owner created. Temporary password: <strong>{tempPassword}</strong></span>
-            <button onClick={() => setTempPassword("")} style={{ background: "none", border: "none", cursor: "pointer", color: "#15803D", fontSize: 18, lineHeight: 1, padding: 0 }}>×</button>
+          <div style={{ background: "#F0FDF4", border: "1px solid #BBF7D0", borderRadius: 8, padding: "12px 14px", fontSize: 13, color: "#15803D", margin: "12px 0", display: "grid", gap: 6 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+              <strong>Owner account created successfully.</strong>
+              <button onClick={() => setTempPassword(null)} style={{ background: "none", border: "none", cursor: "pointer", color: "#15803D", fontSize: 18, lineHeight: 1, padding: 0 }}>×</button>
+            </div>
+            <div>A welcome email with login credentials has been sent to <strong>{tempPassword.email}</strong>.</div>
+            <div style={{ background: "#DCFCE7", borderRadius: 6, padding: "6px 10px", fontFamily: "monospace", display: "flex", alignItems: "center", gap: 8 }}>
+              <span style={{ color: "#64748B" }}>Temp password:</span>
+              <strong style={{ letterSpacing: 1 }}>{tempPassword.password}</strong>
+              <span style={{ color: "#94A3B8", fontSize: 11 }}>(save this — shown only once)</span>
+            </div>
           </div>
         )}
 
-        <Filters style={{ marginTop: 12 }}>
-          <Input
-            placeholder="Search by name, phone, email"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-          <Select
-            value={status}
-            onChange={(event) => setStatus(event.target.value)}
-          >
-            <option>All</option>
-            <option>Active</option>
-            <option>Inactive</option>
-          </Select>
-        </Filters>
+        {tab === "Drivers" ? (
+          <>
+            <Filters>
+              <div style={{ position: "relative" }}>
+                <Input
+                  placeholder="Search by name, phone, email"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                  style={{ width: "100%", paddingRight: 32 }}
+                />
+                {query ? (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    aria-label="Clear search"
+                    style={{
+                      position: "absolute",
+                      right: 8,
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      display: "grid",
+                      placeItems: "center",
+                      background: "none",
+                      border: "none",
+                      padding: 0,
+                      cursor: "pointer",
+                      color: "#64748b",
+                    }}
+                  >
+                    <X size={16} />
+                  </button>
+                ) : null}
+              </div>
+              <Select
+                value={status}
+                onChange={(event) => setStatus(event.target.value)}
+              >
+                <option>All</option>
+                <option>Active</option>
+                <option>Inactive</option>
+              </Select>
+            </Filters>
 
-        <div style={{ marginBottom: 10, display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <Button size="sm" variant="outline" disabled>Bulk Activate</Button>
-          <Button size="sm" variant="outline" disabled>Bulk Suspend</Button>
-          <Button size="sm" variant="danger" disabled>Bulk Delete</Button>
-          {tab === "Crane Owners" && (
-            <Button
-              size="sm"
-              style={{ marginLeft: "auto" }}
-              onClick={() => { setOpenCreate(true); setCreateError(""); setCreateForm(EMPTY_OWNER_FORM); }}
-            >
-              + Create Owner
-            </Button>
-          )}
-        </div>
-
-        <TableWrap>
-          <Table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Phone</th>
-                <th>Email</th>
-                {tab === "Drivers" ? <th>Owner</th> : null}
-                <th>Joined Date</th>
-                <th>Status</th>
-                <th>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={7} style={{ padding: 12 }}>
-                    Loading users...
-                  </td>
-                </tr>
-              ) : null}
-              {!loading && filtered.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ padding: 12 }}>
-                    No users found.
-                  </td>
-                </tr>
-              ) : null}
-
-              {/* Drivers tab — grouped by owner */}
-              {tab === "Drivers" && driverGroups
-                ? driverGroups.map(([key, group]) => (
+            <TableWrap>
+              <Table>
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Phone</th>
+                    <th>Email</th>
+                    <th>Owner</th>
+                    <th>Joined Date</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {loading ? (
+                    <tr>
+                      <td colSpan={7} style={{ padding: 12 }}>Loading drivers...</td>
+                    </tr>
+                  ) : null}
+                  {!loading && driversFiltered.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} style={{ padding: 12 }}>No drivers found.</td>
+                    </tr>
+                  ) : null}
+                  {driverGroups.map(([key, group]) => (
                     <>
                       <tr key={`group-${key}`}>
                         <td
@@ -280,13 +424,7 @@ export function ManageUsersPage() {
                           }}
                         >
                           {key === "__unassigned__" ? "Unassigned" : `Owner: ${group.ownerName}`}
-                          <span
-                            style={{
-                              marginLeft: 8,
-                              color: "#64748B",
-                              fontWeight: 400,
-                            }}
-                          >
+                          <span style={{ marginLeft: 8, color: "#64748B", fontWeight: 400 }}>
                             ({group.drivers.length} driver{group.drivers.length !== 1 ? "s" : ""})
                           </span>
                         </td>
@@ -296,56 +434,59 @@ export function ManageUsersPage() {
                           key={user.id}
                           user={user}
                           showOwner
-                          onToggle={(id, next) =>
-                            api
-                              .patch(`/admin/users/${id}/status`, { isActive: next })
-                              .then((res) => {
-                                const updated = res.data?.data;
-                                if (!updated) return;
-                                setRows((prev) =>
-                                  prev.map((row) =>
-                                    row.id === id ? { ...row, is_active: updated.is_active } : row,
-                                  ),
-                                );
-                              })
-                              .catch(() => {})
-                          }
+                          onToggle={handleToggle}
                         />
                       ))}
                     </>
-                  ))
-                : null}
-
-              {/* Customers / Owners tabs — flat list */}
-              {tab !== "Drivers"
-                ? filtered.map((user) => (
-                    <UserRow
-                      key={user.id}
-                      user={user}
-                      showOwner={false}
-                      onToggle={(id, next) =>
-                        api
-                          .patch(`/admin/users/${id}/status`, { isActive: next })
-                          .then((res) => {
-                            const updated = res.data?.data;
-                            if (!updated) return;
-                            setRows((prev) =>
-                              prev.map((row) =>
-                                row.id === id ? { ...row, is_active: updated.is_active } : row,
-                              ),
-                            );
-                          })
-                          .catch(() => {})
-                      }
-                    />
-                  ))
-                : null}
-            </tbody>
-          </Table>
-        </TableWrap>
+                  ))}
+                </tbody>
+              </Table>
+            </TableWrap>
+          </>
+        ) : (
+          <AppDataTable
+            data={tableData}
+            columns={userColumns}
+            loading={loading}
+            searchable
+            searchPlaceholder="Search by name, phone, email"
+            searchFields={["name", "phone", "email"]}
+            filters={
+              <Select
+                value={status}
+                onChange={(event) => setStatus(event.target.value)}
+                style={{ width: 120, minHeight: 36, fontSize: 13 }}
+              >
+                <option>All</option>
+                <option>Active</option>
+                <option>Inactive</option>
+              </Select>
+            }
+            actions={
+              tab === "Crane Owners" ? (
+                <Button
+                  size="sm"
+                  onClick={() => {
+                    setOpenCreate(true);
+                    setCreateError("");
+                    setCreateForm(EMPTY_OWNER_FORM);
+                    setShowCreatePassword(false);
+                  }}
+                >
+                  + Create Owner
+                </Button>
+              ) : undefined
+            }
+            emptyMessage="No users found."
+          />
+        )}
       </CardContent>
 
-      <Modal open={openCreate} title="Create Owner Account" onClose={() => { setOpenCreate(false); setCreateError(""); }}>
+      <Modal
+        open={openCreate}
+        title="Create Owner Account"
+        onClose={() => { setOpenCreate(false); setCreateError(""); setShowCreatePassword(false); }}
+      >
         <div style={{ display: "grid", gap: 10 }}>
           <div>
             <label style={{ fontSize: 13, color: "#64748B", display: "block", marginBottom: 4 }}>
@@ -354,7 +495,7 @@ export function ManageUsersPage() {
             <Input
               placeholder="e.g. Ravi Constructions"
               value={createForm.name}
-              onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value }))}
+              onChange={(e) => setCreateForm((p) => ({ ...p, name: e.target.value.replace(/[^a-zA-Z\s.,'&-]/g, "") }))}
             />
           </div>
           <div>
@@ -375,25 +516,63 @@ export function ManageUsersPage() {
             <Input
               placeholder="98XXXXXXXX"
               value={createForm.phone}
-              onChange={(e) => setCreateForm((p) => ({ ...p, phone: e.target.value.replace(/\D/g, "").slice(0, 15) }))}
+              onChange={(e) => setCreateForm((p) => ({ ...p, phone: e.target.value.replace(/\D/g, "").slice(0, 10) }))}
             />
           </div>
           <div>
             <label style={{ fontSize: 13, color: "#64748B", display: "block", marginBottom: 4 }}>
               Password <span style={{ color: "#94A3B8", fontWeight: 400 }}>(leave blank to auto-generate)</span>
             </label>
-            <Input
-              type="password"
-              placeholder="Optional"
-              value={createForm.password}
-              onChange={(e) => setCreateForm((p) => ({ ...p, password: e.target.value }))}
-            />
+            <div style={{ position: "relative" }}>
+              <Input
+                type={showCreatePassword ? "text" : "password"}
+                placeholder="Optional — min 6 characters if set"
+                value={createForm.password}
+                onChange={(e) => setCreateForm((p) => ({ ...p, password: e.target.value }))}
+                style={{
+                  paddingRight: 38,
+                  borderColor: createForm.password && createForm.password.length < 6 ? "#DC2626" : undefined,
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => setShowCreatePassword((v) => !v)}
+                aria-label={showCreatePassword ? "Hide password" : "Show password"}
+                style={{
+                  position: "absolute",
+                  right: 10,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  color: "#94A3B8",
+                  display: "flex",
+                  padding: 0,
+                }}
+              >
+                {showCreatePassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              </button>
+            </div>
+            {createForm.password && createForm.password.length < 6 ? (
+              <small style={{ color: "#DC2626", marginTop: 4, display: "block" }}>
+                Password must be at least 6 characters.
+              </small>
+            ) : (
+              <small style={{ color: "#94A3B8", marginTop: 4, display: "block" }}>
+                Leave blank to auto-generate and email credentials to the owner.
+              </small>
+            )}
           </div>
 
           {createError && <small style={{ color: "#DC2626" }}>{createError}</small>}
 
           <div style={{ display: "flex", gap: 8, justifyContent: "flex-end", marginTop: 4 }}>
-            <Button variant="outline" onClick={() => { setOpenCreate(false); setCreateError(""); }} disabled={creating}>
+            <Button
+              variant="outline"
+              onClick={() => { setOpenCreate(false); setCreateError(""); setShowCreatePassword(false); }}
+              disabled={creating}
+            >
               Cancel
             </Button>
             <Button onClick={handleCreateOwner} disabled={creating}>

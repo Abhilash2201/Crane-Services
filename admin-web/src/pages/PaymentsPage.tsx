@@ -1,14 +1,84 @@
 import { useEffect, useMemo, useState } from "react";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "../components/ui/card";
+import { Card, CardContent } from "../components/ui/card";
 import { Button } from "../components/ui/button";
+import { AppDataTable } from "../components/ui/datatable";
+import type { ColumnDef } from "../components/ui/datatable";
 import { api } from "../lib/api";
 
 const currency = (value: number) => `₹${value.toLocaleString("en-IN")}`;
+
+const columns: ColumnDef[] = [
+  {
+    field: "id",
+    header: "Payment ID",
+    body: (row) => (
+      <span
+        style={{
+          fontFamily: "monospace",
+          fontSize: 11,
+          color: "#475569",
+        }}
+      >
+        {String(row.id).slice(0, 8).toUpperCase()}
+      </span>
+    ),
+  },
+  {
+    field: "request_id",
+    header: "Request ID",
+    body: (row) => row.request_id || "—",
+  },
+  {
+    field: "customer_name",
+    header: "Customer",
+    sortable: true,
+    body: (row) => row.customer_name || "—",
+  },
+  {
+    field: "owner_name",
+    header: "Owner",
+    sortable: true,
+    body: (row) => row.owner_name || "—",
+  },
+  {
+    field: "amount",
+    header: "Amount",
+    sortable: true,
+    body: (row) => (
+      <strong style={{ color: "#0A2540" }}>
+        {currency(Number(row.amount || 0))}
+      </strong>
+    ),
+  },
+  {
+    field: "status",
+    header: "Status",
+    sortable: true,
+    body: (row) => (
+      <span
+        style={{
+          fontSize: 12,
+          fontWeight: 600,
+          color:
+            row.status === "paid"
+              ? "#16A34A"
+              : row.status === "failed"
+                ? "#DC2626"
+                : "#D97706",
+        }}
+      >
+        {row.status || "—"}
+      </span>
+    ),
+  },
+  {
+    field: "created_at",
+    header: "Created",
+    sortable: true,
+    body: (row) =>
+      row.created_at ? new Date(row.created_at).toLocaleDateString() : "—",
+  },
+];
 
 export function PaymentsPage() {
   const [rows, setRows] = useState<any[]>([]);
@@ -71,90 +141,17 @@ export function PaymentsPage() {
       </div>
 
       <Card>
-        <CardHeader>
-          <div
-            style={{
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "center",
-            }}
-          >
-            <CardTitle>Payments</CardTitle>
-            <Button variant="outline">Export CSV</Button>
-          </div>
-        </CardHeader>
         <CardContent>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead>
-              <tr>
-                {[
-                  "Payment ID",
-                  "Request ID",
-                  "Customer",
-                  "Owner",
-                  "Amount",
-                  "Status",
-                  "Created",
-                ].map((head) => (
-                  <th
-                    key={head}
-                    style={{
-                      textAlign: "left",
-                      borderBottom: "1px solid #E2E8F0",
-                      padding: 10,
-                      fontSize: 12,
-                      color: "#64748B",
-                    }}
-                  >
-                    {head}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {loading ? (
-                <tr>
-                  <td colSpan={7} style={{ padding: 12 }}>
-                    Loading payments...
-                  </td>
-                </tr>
-              ) : null}
-              {!loading && rows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} style={{ padding: 12 }}>
-                    No payments found.
-                  </td>
-                </tr>
-              ) : null}
-              {rows.map((row) => (
-                <tr key={row.id}>
-                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
-                    {row.id}
-                  </td>
-                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
-                    {row.request_id || "—"}
-                  </td>
-                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
-                    {row.customer_name || "—"}
-                  </td>
-                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
-                    {row.owner_name || "—"}
-                  </td>
-                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
-                    {currency(Number(row.amount || 0))}
-                  </td>
-                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
-                    {row.status || "—"}
-                  </td>
-                  <td style={{ padding: 10, borderBottom: "1px solid #E2E8F0" }}>
-                    {row.created_at
-                      ? new Date(row.created_at).toLocaleDateString()
-                      : "—"}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <AppDataTable
+            data={rows}
+            columns={columns}
+            loading={loading}
+            searchable
+            searchPlaceholder="Search customer, owner, status…"
+            searchFields={["customer_name", "owner_name", "status", "request_id"]}
+            actions={<Button variant="outline">Export CSV</Button>}
+            emptyMessage="No payments found."
+          />
         </CardContent>
       </Card>
     </div>

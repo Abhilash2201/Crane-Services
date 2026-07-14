@@ -32,9 +32,10 @@ export function AuthPage() {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
   const isEmailValid = useMemo(
-    () => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),
+    () => !email || /^[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}$/.test(email.trim()),
     [email],
   );
+  const isEmailFilled = email.trim().length > 0;
   const isNameValid = useMemo(
     () => /^[a-zA-Z\s'-]{2,60}$/.test(name.trim()),
     [name],
@@ -68,7 +69,7 @@ export function AuthPage() {
   const handleSubmit = async () => {
     if (loading) return;
 
-    if (!isEmailValid) {
+    if (!isEmailFilled || !isEmailValid) {
       toast.error("Please enter a valid email address.");
       return;
     }
@@ -186,7 +187,13 @@ export function AuthPage() {
             placeholder="you@company.com"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            style={{ borderColor: isEmailFilled && !isEmailValid ? "#DC2626" : undefined }}
           />
+          {isEmailFilled && !isEmailValid && (
+            <small style={{ color: "#DC2626" }}>
+              Enter a valid email address (e.g. name@company.com).
+            </small>
+          )}
           <label>Password <span style={{ color: "#DC2626" }}>*</span></label>
           <div style={{ position: "relative" }}>
             <Input

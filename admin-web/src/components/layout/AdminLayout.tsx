@@ -2,12 +2,10 @@ import {
   Bell,
   Building2,
   ChartColumnBig,
-  ChevronsLeftRightEllipsis,
   CircleHelp,
   ClipboardCheck,
   CreditCard,
   LayoutDashboard,
-  Search,
   Settings,
   Truck,
   Users,
@@ -16,8 +14,7 @@ import { useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { Button } from "../ui/button";
-import { Input } from "../ui/input";
-import { Tooltip } from "../ui/tooltip";
+import { Modal } from "../ui/modal";
 import { authStore } from "../../lib/api";
 import { useAuth } from "../../hooks/useAuth";
 
@@ -27,15 +24,14 @@ const Shell = styled.div`
   min-height: 100vh;
 `;
 
-const Sidebar = styled.aside<{ $collapsed: boolean }>`
-  width: ${({ $collapsed }) => ($collapsed ? "84px" : "260px")};
+const Sidebar = styled.aside`
+  width: 200px;
   background: ${({ theme }) => theme.colors.navy};
   color: #fff;
   padding: 16px 12px;
   display: flex;
   flex-direction: column;
   gap: 18px;
-  transition: width 0.25s ease;
   position: sticky;
   top: 0;
   height: 100vh;
@@ -43,16 +39,15 @@ const Sidebar = styled.aside<{ $collapsed: boolean }>`
   overflow-x: hidden;
 `;
 
-const Brand = styled.div<{ $collapsed: boolean }>`
+const Brand = styled.div`
   padding: 8px;
   display: flex;
   align-items: center;
   gap: 10px;
 
   strong {
-    font-size: 20px;
+    font-size: 18px;
     letter-spacing: 0.2px;
-    display: ${({ $collapsed }) => ($collapsed ? "none" : "inline")};
   }
 `;
 
@@ -61,16 +56,14 @@ const NavList = styled.nav`
   gap: 6px;
 `;
 
-const NavItem = styled(NavLink)<{ $collapsed: boolean }>`
+const NavItem = styled(NavLink)`
   display: flex;
   align-items: center;
   gap: 10px;
   color: #d9e1ea;
-  min-height: 44px;
+  min-height: 42px;
   border-radius: 10px;
-  padding: ${({ $collapsed }) => ($collapsed ? "0" : "0 12px")};
-  justify-content: ${({ $collapsed }) =>
-    $collapsed ? "center" : "flex-start"};
+  padding: 0 12px;
 
   &.active {
     background: rgba(255, 98, 0, 0.14);
@@ -83,7 +76,7 @@ const NavItem = styled(NavLink)<{ $collapsed: boolean }>`
   }
 
   span {
-    display: ${({ $collapsed }) => ($collapsed ? "none" : "inline")};
+    font-size: 13px;
     font-weight: 600;
   }
 `;
@@ -98,32 +91,19 @@ const Topbar = styled.header`
   position: sticky;
   top: 0;
   z-index: 20;
-  min-height: 72px;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-  background: rgba(248, 250, 252, 0.92);
-  backdrop-filter: blur(8px);
+  min-height: 56px;
+  background: ${({ theme }) => theme.colors.white};
+  box-shadow: ${({ theme }) => theme.shadows.sm};
   display: grid;
   grid-template-columns: 1fr auto;
   gap: 14px;
   align-items: center;
-  padding: 0 18px;
+  padding: 0 24px;
 `;
 
-const SearchWrap = styled.div`
-  position: relative;
-  max-width: 520px;
-
-  svg {
-    position: absolute;
-    left: 12px;
-    top: 50%;
-    transform: translateY(-50%);
-    color: ${({ theme }) => theme.colors.muted};
-  }
-
-  input {
-    padding-left: 36px;
-  }
+const PageTitle = styled.strong`
+  font-size: 17px;
+  color: ${({ theme }) => theme.colors.navy};
 `;
 
 const Right = styled.div`
@@ -154,7 +134,9 @@ const Profile = styled.button`
 `;
 
 const Body = styled.div`
-  padding: 18px;
+  padding: 14px 18px;
+  background: ${({ theme }) => theme.colors.neutralBg};
+  flex: 1;
 `;
 
 const navItems = [
@@ -170,56 +152,42 @@ const navItems = [
 ];
 
 export function AdminLayout() {
-  const [collapsed, setCollapsed] = useState(false);
+  const [confirmLogout, setConfirmLogout] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const auth = useAuth();
   const userName = auth?.user?.name || "Admin";
   const userRole = auth?.user?.role || "admin";
+  const activePage = navItems.find(({ to }) =>
+    to === "/" ? location.pathname === "/" : location.pathname.startsWith(to),
+  );
 
   return (
     <Shell>
-      <Sidebar $collapsed={collapsed}>
-        <Brand $collapsed={collapsed}>
+      <Sidebar>
+        <Brand>
           <img
             alt="CraneHub"
             src="https://cdn-icons-png.flaticon.com/512/2784/2784487.png"
-            width="34"
-            height="34"
+            width="32"
+            height="32"
           />
           <strong>CraneHub</strong>
         </Brand>
 
         <NavList>
           {navItems.map(({ to, label, icon: Icon }) => (
-            <Tooltip key={to} content={collapsed ? label : ""}>
-              <NavItem to={to} end={to === "/"} $collapsed={collapsed}>
-                <Icon size={18} />
-                <span>{label}</span>
-              </NavItem>
-            </Tooltip>
+            <NavItem key={to} to={to} end={to === "/"}>
+              <Icon size={17} />
+              <span>{label}</span>
+            </NavItem>
           ))}
         </NavList>
-
-        <div style={{ marginTop: "auto" }}>
-          <Button
-            variant="outline"
-            size="sm"
-            style={{ width: "100%", justifyContent: collapsed ? "center" : "flex-start", gap: 8, color: "#d9e1ea", borderColor: "rgba(255,255,255,0.15)", background: "transparent" }}
-            onClick={() => setCollapsed((s) => !s)}
-          >
-            <ChevronsLeftRightEllipsis size={16} />
-            {!collapsed ? "Collapse" : null}
-          </Button>
-        </div>
       </Sidebar>
 
       <Main>
         <Topbar>
-          <SearchWrap>
-            <Search size={16} />
-            <Input placeholder="Search requests, users, jobs, payouts..." />
-          </SearchWrap>
+          <PageTitle>{activePage?.label || "CraneHub"}</PageTitle>
 
           <Right>
             <Button size="icon" variant="outline" aria-label="notifications">
@@ -232,10 +200,7 @@ export function AdminLayout() {
             <Button
               size="sm"
               variant="outline"
-              onClick={() => {
-                authStore.write(null);
-                navigate("/login");
-              }}
+              onClick={() => setConfirmLogout(true)}
             >
               Logout
             </Button>
@@ -246,6 +211,31 @@ export function AdminLayout() {
           <Outlet key={location.pathname} />
         </Body>
       </Main>
+
+      <Modal
+        open={confirmLogout}
+        title="Log out"
+        onClose={() => setConfirmLogout(false)}
+        width={380}
+      >
+        <div style={{ display: "grid", gap: 16 }}>
+          <span>Are you sure you want to log out?</span>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <Button variant="outline" onClick={() => setConfirmLogout(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                authStore.write(null);
+                navigate("/login");
+              }}
+            >
+              Logout
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </Shell>
   );
 }

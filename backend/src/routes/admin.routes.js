@@ -1,3 +1,4 @@
+const crypto = require("crypto");
 const express = require("express");
 const bcrypt = require("bcryptjs");
 const { z } = require("zod");
@@ -6,6 +7,7 @@ const { asyncHandler } = require("../utils/asyncHandler");
 const { HttpError } = require("../utils/httpError");
 const { requireAuth, authorize } = require("../middlewares/auth");
 const { getPricingRule } = require("../services/pricing");
+const { sendMail } = require("../services/mailer");
 
 const router = express.Router();
 
@@ -28,14 +30,15 @@ const pricingSchema = z.object({
 
 const variantCreateSchema = z.object({
   name: z.string().min(2),
-  capacityTons: z.coerce.number().positive().optional(),
+  capacityTons: z.coerce.number().positive(),
   description: z.string().max(500).optional(),
   isActive: z.boolean().optional(),
-  baseCharge: z.coerce.number().positive().optional(),
-  baseHours: z.coerce.number().positive().optional(),
-  overtimeRate: z.coerce.number().positive().optional()
+  baseCharge: z.coerce.number().positive(),
+  baseHours: z.coerce.number().positive(),
+  overtimeRate: z.coerce.number().positive()
 });
 
+// PATCH accepts any subset — all fields optional for partial updates
 const variantUpdateSchema = variantCreateSchema.partial();
 
 const variantRequestUpdateSchema = z.object({
@@ -131,12 +134,12 @@ router.post(
       INSERT INTO crane_variants (name, capacity_tons, description, is_active, base_charge, base_hours, overtime_rate)
       VALUES (
         ${payload.name},
-        ${payload.capacityTons || null},
+        ${payload.capacityTons},
         ${payload.description || null},
         ${payload.isActive ?? true},
-        ${payload.baseCharge || null},
-        ${payload.baseHours || null},
-        ${payload.overtimeRate || null}
+        ${payload.baseCharge},
+        ${payload.baseHours},
+        ${payload.overtimeRate}
       )
       RETURNING id, name, capacity_tons, description, is_active,
                 base_charge, base_hours, overtime_rate,
@@ -300,9 +303,10 @@ router.post(
     `;
     if (existing.length) throw new HttpError(409, "Email already in use");
 
-    const rawPassword =
-      payload.password ||
-      Math.random().toString(36).slice(2, 10) + Math.random().toString(36).slice(2, 6);
+    const isAutoPassword = !payload.password;
+    const rawPassword = payload.password ||
+      crypto.randomBytes(5).toString("hex").toUpperCase() +
+      crypto.randomBytes(3).toString("hex");
     const passwordHash = await bcrypt.hash(rawPassword, 10);
 
     const rows = await sql`
@@ -319,11 +323,41 @@ router.post(
       RETURNING id, name, email, phone, role, is_active, onboarding_status, created_at
     `;
 
+    if (isAutoPassword) {
+      sendMail({
+        to: payload.email.toLowerCase(),
+        subject: "Welcome to CraneHub — Your Owner Account Details",
+        text: [
+          `Hello ${payload.name},`,
+          "",
+          "Your CraneHub owner account has been created by the admin.",
+          "",
+          `Email:    ${payload.email.toLowerCase()}`,
+          `Password: ${rawPassword}`,
+          "",
+          "Please log in and change your password immediately.",
+          "",
+          "Regards,",
+          "CraneHub Team"
+        ].join("\n"),
+        html: `
+          <p>Hello <strong>${payload.name}</strong>,</p>
+          <p>Your CraneHub owner account has been created by the admin.</p>
+          <table style="border-collapse:collapse;margin:12px 0">
+            <tr><td style="padding:4px 16px 4px 0;color:#64748B">Email</td><td><strong>${payload.email.toLowerCase()}</strong></td></tr>
+            <tr><td style="padding:4px 16px 4px 0;color:#64748B">Password</td><td><strong style="font-family:monospace;font-size:1.1em">${rawPassword}</strong></td></tr>
+          </table>
+          <p style="color:#DC2626">Please log in and change your password immediately.</p>
+          <p>Regards,<br>CraneHub Team</p>
+        `
+      }).catch(err => console.error("[OWNER_WELCOME_EMAIL_FAILED]", err.message));
+    }
+
     res.status(201).json({
       success: true,
       data: {
         owner: rows[0],
-        tempPassword: payload.password ? null : rawPassword
+        tempPassword: isAutoPassword ? rawPassword : null
       }
     });
   })

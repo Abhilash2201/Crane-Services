@@ -38,16 +38,16 @@ interface AppDataTableProps<T = any> {
 
 const Toolbar = styled.div`
   display: flex;
-  gap: 10px;
+  gap: 8px;
   align-items: center;
-  flex-wrap: wrap;
-  padding-bottom: 12px;
+  flex-wrap: nowrap;
+  padding-bottom: 8px;
 `;
 
 const SearchWrap = styled.span`
   flex: 1;
-  min-width: 180px;
-  max-width: 300px;
+  min-width: 140px;
+  max-width: 220px;
   display: flex;
   align-items: center;
   position: relative;
@@ -62,10 +62,37 @@ const SearchWrap = styled.span`
 
   .p-inputtext {
     padding-left: 2.2rem !important;
-    min-height: 40px;
-    border-radius: 10px;
+    padding-right: 2.2rem !important;
+    min-height: 36px;
+    border-radius: 8px;
+    font-size: 13px;
     width: 100%;
   }
+
+  .clear-btn {
+    position: absolute;
+    right: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    padding: 4px;
+    cursor: pointer;
+    color: #94a3b8;
+    font-size: 12px;
+
+    &:hover {
+      color: #475569;
+    }
+  }
+`;
+
+const FiltersWrap = styled.div`
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex: none;
 `;
 
 // Varying widths create a natural-looking skeleton (avoids uniform blocks)
@@ -134,9 +161,19 @@ export function AppDataTable<T extends Record<string, any>>({
             disabled={loading}
             style={{ opacity: loading ? 0.5 : 1 }}
           />
+          {globalFilter && !loading ? (
+            <button
+              type="button"
+              className="clear-btn"
+              aria-label="Clear search"
+              onClick={() => setGlobalFilter("")}
+            >
+              <i className="pi pi-times" />
+            </button>
+          ) : null}
         </SearchWrap>
       )}
-      {filtersSlot}
+      {filtersSlot ? <FiltersWrap>{filtersSlot}</FiltersWrap> : null}
       {actions ? <div style={{ marginLeft: "auto" }}>{actions}</div> : null}
     </Toolbar>
   );

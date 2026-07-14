@@ -6,18 +6,20 @@ export function Modal({
   title,
   children,
   onClose,
+  width = 480,
 }: {
   open: boolean;
   title: string;
   children: ReactNode;
   onClose: () => void;
+  width?: number;
 }) {
   return (
     <Dialog
       visible={open}
       onHide={onClose}
       header={title}
-      style={{ width: "min(840px, calc(100vw - 24px))" }}
+      style={{ width: `min(${width}px, calc(100vw - 24px))` }}
       dismissableMask
       draggable={false}
       resizable={false}

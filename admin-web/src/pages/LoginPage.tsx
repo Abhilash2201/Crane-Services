@@ -1,3 +1,4 @@
+import { Eye, EyeOff } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import styled from "styled-components";
@@ -21,6 +22,7 @@ const Panel = styled(Card)`
 export function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
 
@@ -31,20 +33,10 @@ export function LoginPage() {
           <CardTitle>Admin Login</CardTitle>
         </CardHeader>
         <CardContent style={{ display: "grid", gap: 10 }}>
-          <label style={{ display: "grid", gap: 6 }}>
-            <span>Email</span>
-            <Input value={email} onChange={(e) => setEmail(e.target.value)} />
-          </label>
-          <label style={{ display: "grid", gap: 6 }}>
-            <span>Password</span>
-            <Input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </label>
-          <Button
-            onClick={() => {
+          <form
+            style={{ display: "grid", gap: 10 }}
+            onSubmit={(e) => {
+              e.preventDefault();
               setMessage("");
               if (!email.trim()) {
                 setMessage("Enter your admin email.");
@@ -79,13 +71,57 @@ export function LoginPage() {
                 );
             }}
           >
-            Sign In
-          </Button>
-          {message ? (
-            <small style={{ color: message.includes("failed") ? "#DC2626" : "#0A2540" }}>
-              {message}
-            </small>
-          ) : null}
+            <label style={{ display: "grid", gap: 6 }}>
+              <span>Email</span>
+              <Input value={email} onChange={(e) => setEmail(e.target.value)} />
+            </label>
+            <label style={{ display: "grid", gap: 6 }}>
+              <span>Password</span>
+              <div style={{ position: "relative" }}>
+                <Input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  style={{
+                    width: "100%",
+                    paddingRight: 36,
+                    borderColor: password && password.length < 6 ? "#DC2626" : undefined,
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  style={{
+                    position: "absolute",
+                    right: 8,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    display: "grid",
+                    placeItems: "center",
+                    background: "none",
+                    border: "none",
+                    padding: 0,
+                    cursor: "pointer",
+                    color: "#64748b",
+                  }}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
+              </div>
+              {password && password.length < 6 && (
+                <small style={{ color: "#DC2626" }}>
+                  Password must be at least 6 characters.
+                </small>
+              )}
+            </label>
+            <Button type="submit">Sign In</Button>
+            {message ? (
+              <small style={{ color: message.includes("failed") ? "#DC2626" : "#0A2540" }}>
+                {message}
+              </small>
+            ) : null}
+          </form>
         </CardContent>
       </Panel>
     </Wrap>
