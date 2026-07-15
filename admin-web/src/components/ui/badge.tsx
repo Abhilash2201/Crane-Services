@@ -4,7 +4,7 @@ import type { HTMLAttributes } from "react";
 type Variant = "default" | "success" | "danger" | "warning" | "info" | "teal";
 
 const severityMap: Record<
-  Exclude<Variant, "default">,
+  Exclude<Variant, "default" | "teal">,
   "success" | "info" | "warning" | "danger"
 > = {
   success: "success",
