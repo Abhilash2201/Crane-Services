@@ -343,7 +343,6 @@ export function ActiveJobsPage() {
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
-      <h1 style={{ margin: 0 }}>Active Jobs</h1>
       {error ? <small style={{ color: "#DC2626" }}>{error}</small> : null}
 
       {liveEvents.length ? (

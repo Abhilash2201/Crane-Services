@@ -104,6 +104,10 @@ api.interceptors.response.use(
         };
         return api(original);
       }
+      // Refresh failed or no refresh token — clear auth and force re-login
+      writeAuth(null);
+      window.location.replace("/auth");
+      return Promise.reject(error);
     }
     return Promise.reject(error);
   },

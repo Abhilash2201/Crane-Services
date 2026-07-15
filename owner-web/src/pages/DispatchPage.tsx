@@ -316,7 +316,6 @@ export function DispatchPage() {
   return (
     <div style={{ display: "grid", gap: 14 }}>
       <div>
-        <h1 style={{ margin: "0 0 4px 0" }}>Dispatch Board</h1>
         <p style={{ margin: 0, color: "#64748B", fontSize: 14 }}>
           Select a request to assign a driver and crane for dispatch.
         </p>

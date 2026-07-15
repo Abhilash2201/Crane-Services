@@ -186,15 +186,18 @@ export function LiveRequestsPage() {
           </option>
         ))}
       </select>
-      <input
-        type="number"
-        value={distance}
-        min={1}
-        onChange={(e) => setDistance(e.target.value.replace(/\D/g, ""))}
-        placeholder="Max km"
-        style={{ ...filterSelectStyle, width: 100 }}
-        aria-label="Max distance in km"
-      />
+      <div style={{ display: "flex", alignItems: "center", gap: 5 }}>
+        <span style={{ fontSize: 12, color: "#64748B", whiteSpace: "nowrap" }}>Within</span>
+        <input
+          type="number"
+          value={distance}
+          min={1}
+          onChange={(e) => setDistance(e.target.value.replace(/\D/g, ""))}
+          style={{ ...filterSelectStyle, width: 70 }}
+          aria-label="Max distance in km"
+        />
+        <span style={{ fontSize: 12, color: "#64748B" }}>km</span>
+      </div>
     </>
   );
 
@@ -229,7 +232,6 @@ export function LiveRequestsPage() {
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
-      <h1 style={{ margin: 0 }}>Live Requests</h1>
       {error ? <small style={{ color: "#DC2626" }}>{error}</small> : null}
 
       <div

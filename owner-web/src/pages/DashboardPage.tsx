@@ -87,21 +87,6 @@ export function DashboardPage() {
         </Card>
       </div>
 
-      <Card>
-        <CardContent>
-          <h3 style={{ marginTop: 0 }}>Sidebar Modes (Open + Collapsed View)</h3>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
-            <div style={{ border: "1px solid #E2E8F0", borderRadius: 10, padding: 10 }}>
-              <strong>Open Mode</strong>
-              <p style={{ margin: "6px 0 0", color: "#64748B" }}>Full labels + fast navigation for office ops.</p>
-            </div>
-            <div style={{ border: "1px solid #E2E8F0", borderRadius: 10, padding: 10 }}>
-              <strong>Collapsed Mode</strong>
-              <p style={{ margin: "6px 0 0", color: "#64748B" }}>Icon-only rail for dense workspace on small screens.</p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
     </div>
   );
 }

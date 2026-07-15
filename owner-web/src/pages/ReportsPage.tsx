@@ -6,8 +6,7 @@ const utilization = [62, 67, 65, 70, 72, 73];
 export function ReportsPage() {
   return (
     <div style={{ display: "grid", gap: 14 }}>
-      <h1>Earnings & Reports</h1>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
+<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))", gap: 12 }}>
         <Card>
           <CardContent>
             <h3 style={{ marginTop: 0 }}>Revenue Trend (₹ Lakhs)</h3>

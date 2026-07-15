@@ -3,178 +3,182 @@ import {
   BriefcaseBusiness,
   Building2,
   ChartColumnBig,
-  ChevronsLeftRightEllipsis,
-  CircleUserRound,
   ClipboardList,
   Truck,
-  Users
+  Users,
+  Workflow,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { Link, NavLink, useNavigate } from "react-router-dom";
+import { useState } from "react";
+import { NavLink, useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { Button } from "../ui/button";
+import { Modal } from "../ui/modal";
+import { Spinner } from "../ui/spinner";
 import { api, authStore } from "../../lib/api";
 
 const Shell = styled.div`
-  min-height: 100vh;
   display: grid;
   grid-template-columns: auto 1fr;
-  background: ${({ theme }) => theme.colors.neutralBg};
+  min-height: 100vh;
 `;
 
-const Sidebar = styled.aside<{ $collapsed: boolean }>`
-  width: ${({ $collapsed }) => ($collapsed ? "86px" : "252px")};
-  transition: width 0.2s ease;
-  border-right: 1px solid ${({ theme }) => theme.colors.border};
+const Sidebar = styled.aside`
+  width: 200px;
   background: ${({ theme }) => theme.colors.navy};
-  color: #dbeafe;
-  padding: 14px 10px;
+  color: #fff;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
   position: sticky;
   top: 0;
   height: 100vh;
+  overflow-y: auto;
+  overflow-x: hidden;
 `;
 
-const Brand = styled(Link)<{ $collapsed: boolean }>`
+const Brand = styled.div`
+  padding: 8px;
   display: flex;
   align-items: center;
   gap: 10px;
-  margin-bottom: 16px;
-  font-weight: 800;
-  color: #ffffff;
-  justify-content: ${({ $collapsed }) => ($collapsed ? "center" : "flex-start")};
+
+  strong {
+    font-size: 18px;
+    letter-spacing: 0.2px;
+  }
 `;
 
 const Hook = styled.span`
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border: 4px solid #ff6200;
   border-top-color: transparent;
   border-radius: 0 0 50% 50%;
   transform: rotate(20deg);
+  flex-shrink: 0;
 `;
 
-const SideItem = styled(NavLink)<{ $collapsed: boolean }>`
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 42px;
-  margin-bottom: 6px;
-  border-radius: 10px;
-  color: #cbd5e1;
-  padding: 0 ${({ $collapsed }) => ($collapsed ? "10px" : "12px")};
-  justify-content: ${({ $collapsed }) => ($collapsed ? "center" : "flex-start")};
-  &.active {
-    background: rgba(255, 98, 0, 0.16);
-    color: #ffffff;
-  }
-`;
-
-const Main = styled.div`
-  min-width: 0;
-`;
-
-const Header = styled.header`
-  height: 70px;
-  border-bottom: 1px solid ${({ theme }) => theme.colors.border};
-  background: rgba(248, 250, 252, 0.95);
-  backdrop-filter: blur(8px);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  position: sticky;
-  top: 0;
-  z-index: 10;
-`;
-
-const TopLeft = styled.div`
-  display: grid;
-`;
-
-const ProfileWrap = styled.div`
-  position: relative;
-`;
-
-const Drop = styled.div`
-  position: absolute;
-  top: 48px;
-  right: 0;
-  width: 200px;
-  border: 1px solid ${({ theme }) => theme.colors.border};
-  background: ${({ theme }) => theme.colors.white};
-  border-radius: 12px;
-  box-shadow: ${({ theme }) => theme.shadows.md};
-  padding: 8px;
+const NavList = styled.nav`
   display: grid;
   gap: 6px;
 `;
 
-const DropItem = styled.button`
-  border: 0;
-  min-height: 36px;
-  text-align: left;
-  padding: 0 10px;
-  border-radius: 8px;
-  background: transparent;
-  cursor: pointer;
+const NavItem = styled(NavLink)`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #d9e1ea;
+  min-height: 42px;
+  border-radius: 10px;
+  padding: 0 12px;
+
+  &.active {
+    background: rgba(255, 98, 0, 0.14);
+    color: #fff;
+    border: 1px solid rgba(255, 98, 0, 0.4);
+  }
+
   &:hover {
-    background: #f1f5f9;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  span {
+    font-size: 13px;
+    font-weight: 600;
   }
 `;
 
-const Content = styled.main`
-  padding: 18px 16px 28px;
+const Main = styled.main`
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 `;
 
-const links = [
-  { to: "/dashboard", label: "Overview", icon: BriefcaseBusiness },
-  { to: "/live-requests", label: "Live Requests", icon: ClipboardList },
-  { to: "/fleet", label: "My Fleet", icon: Truck },
-  { to: "/dispatch", label: "Dispatch Board", icon: Building2 },
-  { to: "/active-jobs", label: "Active Jobs", icon: Building2 },
-  { to: "/drivers", label: "Drivers", icon: Users },
-  { to: "/reports", label: "Earnings", icon: ChartColumnBig }
+const Topbar = styled.header`
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  min-height: 56px;
+  background: ${({ theme }) => theme.colors.white};
+  box-shadow: ${({ theme }) => theme.shadows.sm};
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 14px;
+  align-items: center;
+  padding: 0 24px;
+`;
+
+const PageTitle = styled.strong`
+  font-size: 17px;
+  color: ${({ theme }) => theme.colors.navy};
+`;
+
+const Right = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 10px;
+`;
+
+const Profile = styled.button`
+  border: 1px solid ${({ theme }) => theme.colors.border};
+  background: #fff;
+  min-height: 40px;
+  border-radius: 10px;
+  padding: 0 12px;
+  cursor: default;
+  text-align: left;
+
+  strong {
+    display: block;
+    font-size: 13px;
+    color: ${({ theme }) => theme.colors.navy};
+  }
+
+  span {
+    font-size: 12px;
+    color: ${({ theme }) => theme.colors.muted};
+  }
+`;
+
+const Body = styled.div`
+  padding: 14px 18px;
+  background: ${({ theme }) => theme.colors.neutralBg};
+  flex: 1;
+`;
+
+const navItems = [
+  { to: "/dashboard",    label: "Overview",       icon: BriefcaseBusiness },
+  { to: "/live-requests", label: "Live Requests",  icon: ClipboardList },
+  { to: "/fleet",        label: "My Fleet",        icon: Truck },
+  { to: "/dispatch",     label: "Dispatch Board",  icon: Building2 },
+  { to: "/active-jobs",  label: "Active Jobs",     icon: Workflow },
+  { to: "/drivers",      label: "Drivers",         icon: Users },
+  { to: "/reports",      label: "Earnings",        icon: ChartColumnBig },
 ];
 
 export function MainLayout({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
-  const [collapsed, setCollapsed] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
-  const [authPayload, setAuthPayload] = useState<{
-    refreshToken?: string;
-    user?: { name?: string; email?: string };
-  } | null>(null);
+  const location = useLocation();
+  const [confirmLogout, setConfirmLogout] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
-  useEffect(() => {
-    const loadAuth = () => {
-      try {
-        const raw = localStorage.getItem("auth");
-        setAuthPayload(raw ? JSON.parse(raw) : null);
-      } catch {
-        setAuthPayload(null);
-      }
-    };
-    loadAuth();
-    window.addEventListener("auth-changed", loadAuth);
-    return () => window.removeEventListener("auth-changed", loadAuth);
-  }, []);
+  const auth = authStore.read();
+  const userName = auth?.user?.name || auth?.user?.email || "Owner";
 
-  const displayName = useMemo(
-    () => authPayload?.user?.name || authPayload?.user?.email || "Owner",
-    [authPayload],
+  const activePage = navItems.find(({ to }) =>
+    location.pathname === to || location.pathname.startsWith(to + "/"),
   );
 
   const handleLogout = async () => {
-    const auth = authStore.read();
-    if (!auth?.refreshToken) {
-      authStore.write(null);
-      navigate("/auth", { replace: true });
-      return;
-    }
+    setLoggingOut(true);
+    const stored = authStore.read();
     try {
-      await api.post("/auth/logout", { refreshToken: auth.refreshToken });
+      if (stored?.refreshToken) {
+        await api.post("/auth/logout", { refreshToken: stored.refreshToken });
+      }
     } catch {
-      // Ignore logout errors.
+      // ignore
     } finally {
       authStore.write(null);
       navigate("/auth", { replace: true });
@@ -183,63 +187,66 @@ export function MainLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <Shell>
-      <Sidebar $collapsed={collapsed}>
-        <Brand to="/dashboard" $collapsed={collapsed}>
+      <Sidebar>
+        <Brand>
           <Hook />
-          {!collapsed ? "CraneHub Owner" : null}
+          <strong>CraneHub</strong>
         </Brand>
 
-        {links.map((link) => {
-          const Icon = link.icon;
-          return (
-            <SideItem key={link.to} to={link.to} $collapsed={collapsed}>
+        <NavList>
+          {navItems.map(({ to, label, icon: Icon }) => (
+            <NavItem key={to} to={to}>
               <Icon size={17} />
-              {!collapsed ? link.label : null}
-            </SideItem>
-          );
-        })}
-
-        <div style={{ marginTop: 10 }}>
-          <Button
-            variant="outline"
-            size="sm"
-            style={{ width: "100%" }}
-            onClick={() => setCollapsed((s) => !s)}
-          >
-            <ChevronsLeftRightEllipsis size={16} />
-            {!collapsed ? "Collapse" : null}
-          </Button>
-        </div>
+              <span>{label}</span>
+            </NavItem>
+          ))}
+        </NavList>
       </Sidebar>
 
       <Main>
-        <Header>
-          <TopLeft>
-            <strong style={{ color: "#0A2540" }}>
-              {displayName}
-            </strong>
-            <small style={{ color: "#64748B" }}>Owner Console</small>
-          </TopLeft>
-          <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
-            <Button variant="ghost" size="sm">
-              <Bell size={16} />
+        <Topbar>
+          <PageTitle>{activePage?.label || "CraneHub"}</PageTitle>
+
+          <Right>
+            <Button size="icon" variant="outline" aria-label="notifications">
+              <Bell size={17} />
             </Button>
-            <ProfileWrap>
-              <Button variant="outline" size="sm" onClick={() => setProfileOpen((s) => !s)}>
-                <CircleUserRound size={16} /> {displayName}
-              </Button>
-              {profileOpen ? (
-                <Drop>
-                  <DropItem>Company Profile</DropItem>
-                  <DropItem>Billing Settings</DropItem>
-                  <DropItem onClick={handleLogout}>Logout</DropItem>
-                </Drop>
-              ) : null}
-            </ProfileWrap>
-          </div>
-        </Header>
-        <Content>{children}</Content>
+            <Profile>
+              <strong>{userName}</strong>
+              <span>owner</span>
+            </Profile>
+            <Button size="sm" variant="outline" onClick={() => setConfirmLogout(true)}>
+              Logout
+            </Button>
+          </Right>
+        </Topbar>
+
+        <Body>{children}</Body>
       </Main>
+
+      <Modal
+        open={confirmLogout}
+        title="Log out"
+        onClose={() => setConfirmLogout(false)}
+        width={380}
+      >
+        <div style={{ display: "grid", gap: 16 }}>
+          <span>Are you sure you want to log out?</span>
+          <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+            <Button variant="outline" onClick={() => setConfirmLogout(false)} disabled={loggingOut}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              style={{ display: "flex", alignItems: "center", gap: 8 }}
+            >
+              {loggingOut ? <><Spinner size={14} /> Logging out…</> : "Logout"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </Shell>
   );
 }

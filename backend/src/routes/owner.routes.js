@@ -352,6 +352,7 @@ router.post(
     if (!requestRow.length) throw new HttpError(404, "Pending request not found");
     const io = req.app.get("io");
     io?.to("role:admin").emit("request:accepted", requestRow[0]);
+    io?.to(`user:${requestRow[0].customer_id}`).emit("request:accepted", requestRow[0]);
     res.json({ success: true, data: requestRow[0] });
   })
 );

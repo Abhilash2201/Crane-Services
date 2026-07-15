@@ -218,7 +218,6 @@ export function DriversPage() {
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
-      <h1 style={{ margin: 0 }}>Drivers</h1>
       {error ? <small style={{ color: "#DC2626" }}>{error}</small> : null}
 
       {successMsg ? (
@@ -409,6 +408,7 @@ export function DriversPage() {
       {/* Add Driver modal */}
       <Modal
         open={openCreate}
+        title="Add Driver"
         onClose={() => {
           setOpenCreate(false);
           setCreateError("");

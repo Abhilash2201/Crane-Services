@@ -30,6 +30,22 @@ function statusVariant(status: string): StatusVariant {
   return "outline";
 }
 
+function openDoc(url: string) {
+  if (url.startsWith("data:")) {
+    const [header, b64] = url.split(",");
+    const mime = header.replace("data:", "").replace(";base64", "");
+    const binary = atob(b64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: mime });
+    const blobUrl = URL.createObjectURL(blob);
+    const win = window.open(blobUrl, "_blank");
+    if (win) win.addEventListener("unload", () => URL.revokeObjectURL(blobUrl));
+  } else {
+    window.open(url, "_blank");
+  }
+}
+
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
     <div
@@ -94,6 +110,7 @@ export function FleetPage() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [modalError, setModalError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState<Record<string, boolean>>({});
   const [saving, setSaving] = useState(false);
   const [rcFile, setRcFile] = useState<File | null>(null);
   const [emissionFile, setEmissionFile] = useState<File | null>(null);
@@ -150,6 +167,7 @@ export function FleetPage() {
     setEditingId(null);
     setForm(EMPTY_FORM);
     setModalError("");
+    setFieldErrors({});
     resetFiles();
     setOpen(true);
   };
@@ -164,14 +182,17 @@ export function FleetPage() {
       registration: crane.registration || "",
     });
     setModalError("");
+    setFieldErrors({});
     resetFiles();
     setOpen(true);
   };
 
   const handleSave = async () => {
     setModalError("");
-    if (!form.name.trim()) { setModalError("Crane name is required."); return; }
-    if (!form.variantId) { setModalError("Crane variant is required."); return; }
+
+    const errors: Record<string, boolean> = {};
+    if (!form.name.trim()) errors.name = true;
+    if (!form.variantId) errors.variantId = true;
 
     const reg = form.registration.trim();
     if (reg) {
@@ -181,8 +202,19 @@ export function FleetPage() {
           item.registration.toLowerCase() === reg.toLowerCase() &&
           item.id !== editingId
       );
-      if (duplicate) { setModalError("Registration number already exists."); return; }
+      if (duplicate) errors.registration = true;
     }
+
+    if (Object.keys(errors).length > 0) {
+      setFieldErrors(errors);
+      setModalError(
+        errors.registration
+          ? "Registration number already exists."
+          : "Please fill in all required fields."
+      );
+      return;
+    }
+    setFieldErrors({});
 
     setSaving(true);
     try {
@@ -284,7 +316,6 @@ export function FleetPage() {
 
   return (
     <div style={{ display: "grid", gap: 14 }}>
-      <h1 style={{ margin: 0 }}>Fleet Management</h1>
       {error ? <small style={{ color: "#DC2626" }}>{error}</small> : null}
 
       <div
@@ -381,15 +412,13 @@ export function FleetPage() {
                   { label: "Form 32", url: selected.form32_url },
                   { label: "Insurance", url: selected.insurance_url },
                 ].filter((d) => d.url).map((d) => (
-                  <a
+                  <button
                     key={d.label}
-                    href={d.url!}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#2563EB", textDecoration: "none", padding: "6px 0", borderBottom: "1px solid #F1F5F9" }}
+                    onClick={() => openDoc(d.url!)}
+                    style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "#2563EB", textDecoration: "none", padding: "6px 0", borderBottom: "1px solid #F1F5F9", background: "none", border: "none", cursor: "pointer", width: "100%", textAlign: "left" }}
                   >
                     <span>📄</span> {d.label}
-                  </a>
+                  </button>
                 ))}
               </section>
             )}
@@ -409,15 +438,14 @@ export function FleetPage() {
       {/* Add / Edit Crane modal */}
       <Modal
         open={open}
+        title={editingId ? "Edit Crane" : "Add Crane"}
         onClose={() => {
           setOpen(false);
           setModalError("");
+          setFieldErrors({});
           resetFiles();
         }}
       >
-        <h3 style={{ margin: "0 0 16px 0", color: "#0A2540" }}>
-          {editingId ? "Edit Crane" : "Add Crane"}
-        </h3>
         <div style={{ display: "grid", gap: 10 }}>
           <div>
             <label style={{ fontSize: 13, color: "#64748B", display: "block", marginBottom: 4 }}>
@@ -426,7 +454,11 @@ export function FleetPage() {
             <Input
               placeholder="e.g. 50T Rough Terrain"
               value={form.name}
-              onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))}
+              onChange={(e) => {
+                setForm((prev) => ({ ...prev, name: e.target.value }));
+                setFieldErrors((prev) => ({ ...prev, name: false }));
+              }}
+              style={{ borderColor: fieldErrors.name ? "#DC2626" : undefined }}
             />
           </div>
 
@@ -439,8 +471,14 @@ export function FleetPage() {
             </label>
             <select
               value={form.variantId}
-              onChange={(e) => setForm((prev) => ({ ...prev, variantId: e.target.value }))}
-              style={selectStyle}
+              onChange={(e) => {
+                setForm((prev) => ({ ...prev, variantId: e.target.value }));
+                setFieldErrors((prev) => ({ ...prev, variantId: false }));
+              }}
+              style={{
+                ...selectStyle,
+                borderColor: fieldErrors.variantId ? "#DC2626" : "#CBD5E1",
+              }}
             >
               <option value="">Select variant</option>
               {variants.map((v) => (
@@ -488,9 +526,11 @@ export function FleetPage() {
             <Input
               placeholder="e.g. KA-53-MR-2281"
               value={form.registration}
-              onChange={(e) =>
-                setForm((prev) => ({ ...prev, registration: e.target.value }))
-              }
+              onChange={(e) => {
+                setForm((prev) => ({ ...prev, registration: e.target.value }));
+                setFieldErrors((prev) => ({ ...prev, registration: false }));
+              }}
+              style={{ borderColor: fieldErrors.registration ? "#DC2626" : undefined }}
             />
           </div>
 

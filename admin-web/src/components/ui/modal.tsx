@@ -19,7 +19,8 @@ export function Modal({
       visible={open}
       onHide={onClose}
       header={title}
-      style={{ width: `min(${width}px, calc(100vw - 24px))` }}
+      style={{ width: `min(${width}px, calc(100vw - 24px))`, maxHeight: "90vh" }}
+      contentStyle={{ overflowY: "auto", maxHeight: "calc(90vh - 120px)", padding: "20px" }}
       dismissableMask
       draggable={false}
       resizable={false}

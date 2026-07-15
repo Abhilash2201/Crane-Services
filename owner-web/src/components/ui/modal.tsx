@@ -3,18 +3,24 @@ import type { ReactNode } from "react";
 
 export function Modal({
   open,
+  title,
   children,
   onClose,
+  width = 480,
 }: {
   open: boolean;
+  title: string;
   children: ReactNode;
   onClose: () => void;
+  width?: number;
 }) {
   return (
     <Dialog
       visible={open}
       onHide={onClose}
-      style={{ width: "min(560px, calc(100vw - 24px))" }}
+      header={title}
+      style={{ width: `min(${width}px, calc(100vw - 24px))`, maxHeight: "90vh" }}
+      contentStyle={{ overflowY: "auto", maxHeight: "calc(90vh - 120px)", padding: "20px" }}
       dismissableMask
       draggable={false}
       resizable={false}

@@ -15,7 +15,8 @@ import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import styled from "styled-components";
 import { Button } from "../ui/button";
 import { Modal } from "../ui/modal";
-import { authStore } from "../../lib/api";
+import { Spinner } from "../ui/spinner";
+import { api, authStore } from "../../lib/api";
 import { useAuth } from "../../hooks/useAuth";
 
 const Shell = styled.div`
@@ -153,6 +154,7 @@ const navItems = [
 
 export function AdminLayout() {
   const [confirmLogout, setConfirmLogout] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const auth = useAuth();
@@ -221,17 +223,29 @@ export function AdminLayout() {
         <div style={{ display: "grid", gap: 16 }}>
           <span>Are you sure you want to log out?</span>
           <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
-            <Button variant="outline" onClick={() => setConfirmLogout(false)}>
+            <Button variant="outline" onClick={() => setConfirmLogout(false)} disabled={loggingOut}>
               Cancel
             </Button>
             <Button
               variant="danger"
-              onClick={() => {
-                authStore.write(null);
-                navigate("/login");
+              disabled={loggingOut}
+              style={{ display: "flex", alignItems: "center", gap: 8 }}
+              onClick={async () => {
+                setLoggingOut(true);
+                const stored = authStore.read();
+                try {
+                  if (stored?.refreshToken) {
+                    await api.post("/auth/logout", { refreshToken: stored.refreshToken });
+                  }
+                } catch {
+                  // ignore
+                } finally {
+                  authStore.write(null);
+                  navigate("/login", { replace: true });
+                }
               }}
             >
-              Logout
+              {loggingOut ? <><Spinner size={14} /> Logging out…</> : "Logout"}
             </Button>
           </div>
         </div>

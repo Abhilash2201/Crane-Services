@@ -7,7 +7,7 @@ import { Badge } from "../components/ui/badge";
 import { Button } from "../components/ui/button";
 import { Card, CardContent } from "../components/ui/card";
 import { Tabs } from "../components/ui/tabs";
-import { api } from "../lib/api";
+import { api, socket } from "../lib/api";
 
 const List = styled.div`
   display: grid;
@@ -112,6 +112,19 @@ export function DashboardPage() {
         );
       })
       .finally(() => setSummaryLoading(false));
+  }, []);
+
+  useEffect(() => {
+    const onAccepted = (data: { id: string; status: string }) => {
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === data.id ? { ...item, status: data.status ?? "accepted" } : item,
+        ),
+      );
+      toast.success("Your crane request has been accepted by an owner!");
+    };
+    socket.on("request:accepted", onAccepted);
+    return () => { socket.off("request:accepted", onAccepted); };
   }, []);
 
   return (
