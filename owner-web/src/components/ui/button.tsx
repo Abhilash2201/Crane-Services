@@ -9,11 +9,13 @@ const buttonVariants = cva("", {
       outline: "outline",
       ghost: "ghost",
       success: "success",
+      danger: "danger",
     },
     size: {
       sm: "sm",
       default: "default",
       lg: "lg",
+      icon: "icon",
     },
   },
   defaultVariants: { variant: "default", size: "default" },
@@ -34,8 +36,9 @@ export function Button({
 }: ButtonProps) {
   const outlined = variant === "outline";
   const text = variant === "ghost";
-  const severity = variant === "success" ? "success" : undefined;
+  const severity = variant === "success" ? "success" : variant === "danger" ? "danger" : undefined;
   const prSize = size === "sm" ? "small" : size === "lg" ? "large" : undefined;
+  const iconStyle = size === "icon" ? { width: 40, height: 40, padding: 0, ...style } : style;
   const label = typeof children === "string" ? children : undefined;
 
   return (
@@ -43,12 +46,12 @@ export function Button({
       label={label}
       outlined={outlined}
       text={text}
-      severity={severity as "success" | undefined}
+      severity={severity as "success" | "danger" | undefined}
       size={prSize}
       disabled={disabled}
       onClick={onClick as React.MouseEventHandler<HTMLButtonElement>}
       type={(type ?? "button") as "button" | "submit" | "reset"}
-      style={style}
+      style={iconStyle}
       className={className}
     >
       {label === undefined ? children : null}

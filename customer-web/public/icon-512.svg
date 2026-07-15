@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="96" fill="#0A2540"/>
+  <!-- Crane arm (horizontal beam) -->
+  <line x1="120" y1="120" x2="400" y2="120" stroke="#FF6200" stroke-width="44" stroke-linecap="round"/>
+  <!-- Tower (vertical) -->
+  <line x1="160" y1="120" x2="160" y2="360" stroke="#FF6200" stroke-width="44" stroke-linecap="round"/>
+  <!-- Cable from arm tip -->
+  <line x1="360" y1="120" x2="360" y2="220" stroke="#FF6200" stroke-width="32" stroke-linecap="round"/>
+  <!-- Hook -->
+  <path d="M 360 220 Q 360 310 310 310 Q 260 310 260 260" fill="none" stroke="#FF6200" stroke-width="36" stroke-linecap="round"/>
+  <!-- Hook tip curl -->
+  <path d="M 260 260 Q 240 240 270 225" fill="none" stroke="#FF6200" stroke-width="30" stroke-linecap="round"/>
+</svg>
